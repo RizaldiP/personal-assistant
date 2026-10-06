@@ -1,16 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:personal_offline/app.dart';
+import 'package:personal_offline/core/database/database_provider.dart';
+import 'package:personal_offline/core/utils/clock.dart';
+import 'package:personal_offline/features/chat/data/repositories/chat_repository_impl.dart';
 import 'package:personal_offline/features/home/presentation/screens/home_screen.dart';
+import 'package:personal_offline/features/todo/data/repositories/task_repository_impl.dart';
+import 'package:personal_offline/features/todo/domain/entities/task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'helpers/fake_chat_repository.dart';
+import 'helpers/fake_task_repository.dart';
 
 Finder _navDestination(String label) =>
     find.descendant(of: find.byType(NavigationBar), matching: find.text(label));
 
-Future<void> _pumpApp(WidgetTester tester) async {
-  await tester.pumpWidget(const ProviderScope(child: PersonalOfflineApp()));
+Future<void> _pumpApp(
+  WidgetTester tester, {
+  List<Override> overrides = const [],
+  FakeTaskRepository? taskRepository,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        taskRepositoryProvider.overrideWithValue(
+          taskRepository ?? FakeTaskRepository(),
+        ),
+        ...overrides,
+      ],
+      child: const PersonalOfflineApp(),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -34,13 +57,18 @@ void main() {
       expect(find.text('HARI INI'), findsOneWidget);
       expect(find.text('Belum ada tugas hari ini'), findsOneWidget);
       expect(find.text('Apa yang ingin kamu lakukan?'), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Ketik di sini...'), findsOneWidget);
     });
 
     testWidgets('format tanggal memakai Bahasa Indonesia', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(body: HomeScreen(today: DateTime(2026, 10, 5))),
+        ProviderScope(
+          overrides: [
+            taskRepositoryProvider.overrideWithValue(FakeTaskRepository()),
+          ],
+          child: MaterialApp(
+            home: Scaffold(body: HomeScreen(today: DateTime(2026, 10, 5))),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -48,15 +76,57 @@ void main() {
       expect(find.text('Senin, 5 Oktober 2026'), findsOneWidget);
     });
 
-    testWidgets('input menampilkan pesan bahwa chat belum tersedia', (
-      tester,
-    ) async {
-      await _pumpApp(tester);
+    testWidgets('HARI INI menampilkan tugas pending hari ini', (tester) async {
+      await _pumpApp(
+        tester,
+        taskRepository: FakeTaskRepository(
+          seed: [
+            const Task(title: 'Beresin kamar', dueDate: '2026-10-05'),
+            const Task(title: 'Tugas besok', dueDate: '2026-10-06'),
+          ],
+        ),
+        overrides: [
+          clockProvider.overrideWithValue(FixedClock(DateTime(2026, 10, 5, 7))),
+        ],
+      );
 
-      await tester.tap(find.byType(TextField));
+      expect(find.text('Beresin kamar'), findsOneWidget);
+      expect(find.text('Tugas besok'), findsNothing);
+      expect(find.text('Lihat semua tugas'), findsOneWidget);
+    });
+
+    testWidgets('Lihat semua tugas membuka layar Tugas', (tester) async {
+      await _pumpApp(
+        tester,
+        taskRepository: FakeTaskRepository(
+          seed: [const Task(title: 'Pagi ini', dueDate: '2026-10-05')],
+        ),
+        overrides: [
+          clockProvider.overrideWithValue(FixedClock(DateTime(2026, 10, 5, 7))),
+        ],
+      );
+
+      await tester.tap(find.text('Lihat semua tugas'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Fitur chat belum tersedia.'), findsOneWidget);
+      expect(find.text('Tugas'), findsOneWidget);
+      expect(find.text('Pagi ini'), findsOneWidget);
+    });
+
+    testWidgets('mengetuk input chat membuka layar percakapan', (tester) async {
+      await _pumpApp(
+        tester,
+        overrides: [
+          chatRepositoryProvider.overrideWithValue(FakeChatRepository()),
+        ],
+      );
+
+      await tester.tap(find.text('Ketik di sini...'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Percakapan'), findsOneWidget);
+      expect(find.text('Belum ada percakapan'), findsOneWidget);
+      expect(find.byType(TextField), findsOneWidget);
     });
   });
 

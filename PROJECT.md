@@ -139,7 +139,7 @@ Pada awal setiap sesi:
 
 Pada awal proyek:
 
-CURRENT ACTIVE PHASE: PHASE 2
+CURRENT ACTIVE PHASE: PHASE 8
 STATUS: DONE
 
 Pengguna akan mengubah bagian ini secara manual.
@@ -1200,12 +1200,12 @@ Pastikan notification tetap muncul ketika:
 
 Definition of Done
 
-- [ ] notification bekerja
-- [ ] schedule bekerja
-- [ ] cancel bekerja
-- [ ] snooze bekerja
-- [ ] recurring bekerja
-- [ ] permission Android ditangani
+- [x] notification bekerja
+- [x] schedule bekerja
+- [x] cancel bekerja
+- [x] snooze bekerja
+- [x] recurring bekerja
+- [x] permission Android ditangani
 
 STOP.
 
@@ -1227,10 +1227,10 @@ besok beli beras minyak telur
 
 Definition of Done
 
-- [ ] shopping list
-- [ ] item checklist
-- [ ] natural language
-- [ ] persistent storage
+- [x] shopping list
+- [x] item checklist
+- [x] natural language
+- [x] persistent storage
 
 STOP.
 
@@ -1256,12 +1256,12 @@ bayar listrik 350 ribu
 
 Definition of Done
 
-- [ ] expense
-- [ ] category
-- [ ] amount parser
-- [ ] daily total
-- [ ] monthly total
-- [ ] tests
+- [x] expense
+- [x] category
+- [x] amount parser
+- [x] daily total
+- [x] monthly total
+- [x] tests
 
 STOP.
 
@@ -1680,7 +1680,7 @@ Tunggu instruksi pengguna.
 
 39. CURRENT ACTIVE PHASE
 
-CURRENT ACTIVE PHASE: PHASE 2
+CURRENT ACTIVE PHASE: PHASE 8
 STATUS: DONE
 
 User akan mengubah nilai ini untuk memulai phase berikutnya.

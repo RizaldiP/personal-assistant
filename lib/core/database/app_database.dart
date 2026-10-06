@@ -3,11 +3,15 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'daos/chat_message_dao.dart';
+import 'daos/expense_dao.dart';
 import 'daos/reminder_dao.dart';
+import 'daos/shopping_dao.dart';
 import 'daos/task_dao.dart';
 import 'daos/user_preferences_dao.dart';
 import 'tables/chat_message_table.dart';
+import 'tables/expense_table.dart';
 import 'tables/reminder_table.dart';
+import 'tables/shopping_table.dart';
 import 'tables/task_table.dart';
 import 'tables/user_preference_table.dart';
 
@@ -18,17 +22,34 @@ part 'app_database.g.dart';
 /// Skema:
 /// - versi 1: baseline empat tabel inti (dibuat pada awal PHASE 2)
 /// - versi 2: menambah kolom jejak NLP + indeks query
+/// - versi 3: menambah tabel daftar belanja (PHASE 7)
+/// - versi 4: menambah tabel pengeluaran (PHASE 8)
 ///
 /// File database disimpan di application support directory perangkat.
 @DriftDatabase(
-  tables: [Tasks, Reminders, ChatMessages, UserPreferences],
-  daos: [TaskDao, ReminderDao, ChatMessageDao, UserPreferencesDao],
+  tables: [
+    Tasks,
+    Reminders,
+    ChatMessages,
+    UserPreferences,
+    ShoppingLists,
+    ShoppingItems,
+    Expenses,
+  ],
+  daos: [
+    TaskDao,
+    ReminderDao,
+    ChatMessageDao,
+    UserPreferencesDao,
+    ShoppingDao,
+    ExpenseDao,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _openConnection());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -39,6 +60,12 @@ class AppDatabase extends _$AppDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await _upgradeToV2(m);
+      }
+      if (from < 3) {
+        await _upgradeToV3(m);
+      }
+      if (from < 4) {
+        await _upgradeToV4(m);
       }
     },
     beforeOpen: (details) async {
@@ -62,6 +89,30 @@ class AppDatabase extends _$AppDatabase {
     await m.addColumn(chatMessages, chatMessages.resolvedAt);
 
     await _createIndexes(this);
+  }
+
+  /// v2 -> v3: tabel daftar belanja (SHOPPING LIST, PHASE 7).
+  Future<void> _upgradeToV3(Migrator m) async {
+    await m.createTable(shoppingLists);
+    await m.createTable(shoppingItems);
+    // createTable tidak membuat indeks dari @TableIndex; buat manual.
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_shopping_items_list_id '
+      'ON shopping_items (list_id)',
+    );
+  }
+
+  /// v3 -> v4: tabel pengeluaran (EXPENSE, PHASE 8).
+  Future<void> _upgradeToV4(Migrator m) async {
+    await m.createTable(expenses);
+    // createTable tidak membuat indeks dari @TableIndex; buat manual.
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses (date)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_expenses_category '
+      'ON expenses (category)',
+    );
   }
 
   static Future<void> _createIndexes(DatabaseConnectionUser db) async {
