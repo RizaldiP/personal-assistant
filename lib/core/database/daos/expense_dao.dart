@@ -26,6 +26,23 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
   Future<Expense?> getById(int id) =>
       (select(expenses)..where((e) => e.id.equals(id))).getSingleOrNull();
 
+  /// Pencarian deskripsi/kategori untuk global search (PHASE 13).
+  Future<List<Expense>> search(String query, {int limit = 30}) {
+    final like = '%${_escapeLike(query)}%';
+    return (select(expenses)
+          ..where(
+            (e) =>
+                e.description.like(like, escapeChar: '\\') |
+                e.category.like(like, escapeChar: '\\'),
+          )
+          ..orderBy([
+            (e) => OrderingTerm.desc(e.date),
+            (e) => OrderingTerm.desc(e.id),
+          ])
+          ..limit(limit))
+        .get();
+  }
+
   Future<int> insert(ExpensesCompanion entry) => into(expenses).insert(entry);
 
   Future<bool> updateById(int id, ExpensesCompanion entry) async {
@@ -54,4 +71,7 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase> with _$ExpenseDaoMixin {
             .getSingle();
     return row.read(expenses.amount.sum()) ?? 0;
   }
+
+  static String _escapeLike(String value) =>
+      value.replaceAllMapped(RegExp(r'[%_\\]'), (match) => '\\${match[0]}');
 }

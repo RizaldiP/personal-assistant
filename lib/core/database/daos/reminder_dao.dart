@@ -19,6 +19,15 @@ class ReminderDao extends DatabaseAccessor<AppDatabase>
             ]))
           .watch();
 
+  /// Semua reminder (aktif maupun selesai) — dipakai kalender (PHASE 13).
+  Stream<List<Reminder>> watchAll() =>
+      (select(reminders)..orderBy([
+            (r) => OrderingTerm.asc(r.date),
+            (r) => OrderingTerm.asc(r.time),
+            (r) => OrderingTerm.asc(r.id),
+          ]))
+          .watch();
+
   Future<Reminder?> getById(int id) =>
       (select(reminders)..where((r) => r.id.equals(id))).getSingleOrNull();
 

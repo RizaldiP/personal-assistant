@@ -41,6 +41,20 @@ class ReminderController extends Notifier<void> {
     return ref.read(reminderRepositoryProvider).delete(id);
   }
 
+  /// Menyimpan perubahan [reminder] dan menjadwalkan ulang notifikasinya
+  /// (dipakai perintah "ubah"/"tunda" di chat, PHASE 12).
+  Future<bool> update(Reminder reminder) async {
+    final id = reminder.id;
+    if (id == null) return false;
+    await ref.read(notificationSchedulerProvider).cancel(id);
+    final saved = await _save(reminder);
+    if (saved) {
+      final at = _fireTime(reminder);
+      if (at != null) await _schedule(id, reminder.title, at);
+    }
+    return saved;
+  }
+
   /// Menunda reminder [id] selama [duration] dari waktu sekarang; notifikasi
   /// dijadwalkan ulang ke `snoozed_until` / `next_fire_at`.
   Future<bool> snooze(int id, Duration duration) async {

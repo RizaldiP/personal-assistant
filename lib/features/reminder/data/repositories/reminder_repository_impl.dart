@@ -22,6 +22,10 @@ class ReminderRepositoryImpl implements ReminderRepository {
       _dao.watchActive().map((rows) => rows.map(_toDomain).toList());
 
   @override
+  Stream<List<Reminder>> watchAll() =>
+      _dao.watchAll().map((rows) => rows.map(_toDomain).toList());
+
+  @override
   Future<Reminder?> getById(int id) async {
     final row = await _dao.getById(id);
     return row == null ? null : _toDomain(row);

@@ -29,4 +29,15 @@ abstract final class DateFormats {
   }
 
   static String shortTime(String? hhMm) => (hhMm ?? '').trim();
+
+  /// Epoch [DateTime] → `5 Oktober 2026` (dikonversi ke zona lokal).
+  static String longFromDate(DateTime? date) {
+    if (date == null) return '';
+    final local = date.toLocal();
+    return longIndonesia(
+      '${local.year.toString().padLeft(4, '0')}-'
+      '${local.month.toString().padLeft(2, '0')}-'
+      '${local.day.toString().padLeft(2, '0')}',
+    );
+  }
 }

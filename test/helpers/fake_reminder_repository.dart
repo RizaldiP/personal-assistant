@@ -22,6 +22,12 @@ class FakeReminderRepository implements ReminderRepository {
     yield* _changes.stream.map((_) => _active());
   }
 
+  @override
+  Stream<List<Reminder>> watchAll() async* {
+    yield List.of(_reminders);
+    yield* _changes.stream.map((_) => List.of(_reminders));
+  }
+
   List<Reminder> _active() =>
       _reminders.where((r) => r.status == ReminderStatus.active).toList();
 

@@ -102,21 +102,25 @@ phase 15).
 
 Tidak dipakai untuk telemetry.
 
-## 8. AI runtime — BELUM DIPUTUSKAN (PHASE 10)
+## 8. AI runtime — DIPUTUSKAN (PHASE 10)
 
-Sengaja tidak dipilih sekarang. Kandidat akan dinilai pada PHASE 10
-berdasarkan kriteria di `05-ai-abstraction.md`:
+| Package | Versi | Keperluan |
+|---------|-------|-----------|
+| `llamadart` | 0.10.0 | runtime inference on-device (llama.cpp via FFI) |
+| `ffi` (dev) | 2.2.0 | akses env process saat benchmark (test only) |
 
-- offline / on-device
-- lisensi komersial compatible
-- performa RAM & latency di perangkat Android menengah
-- dukungan Bahasa Indonesia
-- menghasilkan structured JSON
-- ukuran model wajar (bukan ratusan MB kalau bisa dihindari)
+Model: `Qwen/Qwen2.5-0.5B-Instruct-GGUF` (`q4_k_m`, Apache-2.0, ±469 MB) —
+dipilih di PHASE 10, alasan lengkap di `05-ai-abstraction.md` bagian 8.
 
-Interface tetap sama (`LocalAiEngine`), implementasi menyusul.
-Jangan hard-code nama model di seluruh codebase — hanya di satu tempat:
-`core/config/ai_config.dart`.
+- 100% offline: model dibundel/diunduh sekali ke cache perangkat; inference
+  tidak pernah menyentuh jaringan.
+- Runtime dan backend native (`ggml-cpu.dll` dsb.) dibangun oleh build hook
+  package (`build/native_assets/<platform>`), bukan dependency manual.
+- Interface tetap sama (`LocalAiEngine`), nama model & parameter hanya ada di
+  `core/ai/ai_config.dart`.
+- Tidak ada cloud AI, tidak ada API key (bagian 9 tetap berlaku). `http`
+  tidak dipakai langsung — unduhan model ditangani `llamadart`
+  (`AiModelManager.downloadModel`, hanya setelah consent user).
 
 ## 9. Package yang DILARANG
 

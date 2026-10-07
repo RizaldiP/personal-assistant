@@ -5,6 +5,7 @@ import '../../../../core/config/app_info.dart';
 import '../../../../core/settings/theme_controller.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../widgets/ai_model_card.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -107,6 +108,15 @@ class SettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: AppSpacing.xl),
+          Text(
+            'AI LOKAL',
+            style: AppTypography.sectionLabel(
+              theme.textTheme,
+            )?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const AiModelCard(),
           const SizedBox(height: AppSpacing.xl),
           Text(
             'TENTANG',

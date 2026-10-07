@@ -6,6 +6,7 @@ import '../../../../shared/widgets/empty_state.dart';
 import '../../domain/entities/chat_message.dart';
 import '../providers/chat_messages_provider.dart';
 import '../widgets/chat_input.dart';
+import '../widgets/confirmation_bar.dart';
 import '../widgets/message_bubble.dart';
 
 /// Layar percakapan: riwayat pesan tersimpan + input kirim.
@@ -38,6 +39,7 @@ class ChatScreen extends ConsumerWidget {
                     : _MessageList(messages: items),
               ),
             ),
+            const ConfirmationBar(),
             const ChatInput(),
           ],
         ),

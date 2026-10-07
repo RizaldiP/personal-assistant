@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../providers/chat_controller.dart';
+import '../providers/pending_confirmation.dart';
 
 /// Input pesan di bagian bawah layar chat.
 class ChatInput extends ConsumerStatefulWidget {
@@ -42,6 +43,7 @@ class _ChatInputState extends ConsumerState<ChatInput> {
     try {
       await ref.read(chatControllerProvider.notifier).send(text);
       if (!mounted) return;
+      ref.read(chatDraftProvider.notifier).clear();
       _controller.clear();
     } catch (_) {
       if (!mounted) return;
@@ -58,6 +60,16 @@ class _ChatInputState extends ConsumerState<ChatInput> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final isSending = ref.watch(chatControllerProvider).isLoading;
+
+    // Draf dari kartu konfirmasi (`Ubah`) mengisi kolom teks.
+    ref.listen(chatDraftProvider, (previous, next) {
+      if (next == null || next.isEmpty) return;
+      _controller.value = TextEditingValue(
+        text: next,
+        selection: TextSelection.collapsed(offset: next.length),
+      );
+      ref.read(chatDraftProvider.notifier).clear();
+    });
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(

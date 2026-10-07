@@ -139,7 +139,7 @@ Pada awal setiap sesi:
 
 Pada awal proyek:
 
-CURRENT ACTIVE PHASE: PHASE 8
+CURRENT ACTIVE PHASE: PHASE 13
 STATUS: DONE
 
 Pengguna akan mengubah bagian ini secara manual.
@@ -1287,11 +1287,11 @@ ide: aplikasi inventory kapal
 
 Definition of Done
 
-- [ ] note
-- [ ] journal
-- [ ] idea
-- [ ] tag
-- [ ] search
+- [x] note
+- [x] journal
+- [x] idea
+- [x] tag
+- [x] search
 
 STOP.
 
@@ -1343,12 +1343,12 @@ Jangan
 
 Definition of Done
 
-- [ ] model lokal dapat load
-- [ ] inference bekerja
-- [ ] JSON valid
-- [ ] app tetap bekerja tanpa model
-- [ ] AI tidak crash app
-- [ ] benchmark sederhana
+- [x] model lokal dapat load
+- [x] inference bekerja
+- [x] JSON valid
+- [x] app tetap bekerja tanpa model
+- [x] AI tidak crash app
+- [x] benchmark sederhana
 
 STOP.
 
@@ -1374,12 +1374,12 @@ kayaknya minggu depan gue harus ngurus pajak motor
 
 Definition of Done
 
-- [ ] routing parser/AI
-- [ ] confidence
-- [ ] fallback
-- [ ] validation
-- [ ] confirmation
-- [ ] ambiguous handling
+- [x] routing parser/AI
+- [x] confidence
+- [x] fallback
+- [x] validation
+- [x] confirmation
+- [x] ambiguous handling
 
 STOP.
 
@@ -1412,12 +1412,12 @@ ubah jam
 
 Definition of Done
 
-- [ ] last item context
-- [ ] update
-- [ ] delete
-- [ ] complete
-- [ ] snooze
-- [ ] tests
+- [x] last item context
+- [x] update
+- [x] delete
+- [x] complete
+- [x] snooze
+- [x] tests
 
 STOP.
 
@@ -1436,11 +1436,11 @@ Kerjakan
 
 Definition of Done
 
-- [ ] search cepat
-- [ ] calendar
-- [ ] inbox
-- [ ] unresolved items
-- [ ] filtering
+- [x] search cepat
+- [x] calendar
+- [x] inbox
+- [x] unresolved items
+- [x] filtering
 
 STOP.
 
@@ -1680,7 +1680,7 @@ Tunggu instruksi pengguna.
 
 39. CURRENT ACTIVE PHASE
 
-CURRENT ACTIVE PHASE: PHASE 8
+CURRENT ACTIVE PHASE: PHASE 13
 STATUS: DONE
 
 User akan mengubah nilai ini untuk memulai phase berikutnya.

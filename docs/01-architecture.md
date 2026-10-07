@@ -59,7 +59,7 @@ Komponen utama:
 
 | Komponen | Tugas |
 |----------|-------|
-| Intent Processor | memilih jalur: Rule Parser → Local AI → Validator |
+| Intent Processor | memilih jalur: Follow-Up → Rule Parser → Local AI → Validator |
 | Task Manager | CRUD todo, prioritas, due date, completion |
 | Reminder Manager | jadwal, recurring, snooze, cancel |
 | Finance Manager | kategori, nominal, daily/monthly total, budget |
@@ -113,25 +113,33 @@ di-mock saat test dan bisa ditukar tanpa menyentuh UI.
 ```
 USER INPUT
    ↓
-NORMALIZER   (trim, lowercase untuk deteksi, unicode clean)
-   ↓
-RULE PARSER  (deteksi tanggal, jam, nominal, intent)
-   ↓
-confidence tinggi?
-   ├── YES → STRUCTURED INTENT
-   └── NO  → LOCAL AI (offline) → STRUCTURED INTENT
-                     ↓
-                VALIDATOR  (schema check + business rule)
-                     ↓
-                CONFIRMATION (berdasarkan confidence)
-                     ↓
-                ACTION (repository + notification)
-                     ↓
-                UNDO TOKEN (opsional, untuk snackbar Undo)
+FOLLOW-UP PARSER  (diawali ubah/hapus/selesaikan/tunda?)
+   ├── YES → CONTEXTUAL INTENT  (target: LastItemContext)
+   │            ↓
+   │     execute / konfirmasi (hapus) / "belum ada item"
+   └── NO  → NORMALIZER   (trim, lowercase, unicode clean)
+                ↓
+             RULE PARSER  (deteksi tanggal, jam, nominal, intent)
+                ↓
+             confidence tinggi?
+                ├── YES → STRUCTURED INTENT
+                └── NO  → LOCAL AI (offline) → STRUCTURED INTENT
+                                  ↓
+                             VALIDATOR  (schema check + business rule)
+                                  ↓
+                             CONFIRMATION (berdasarkan confidence)
+                                  ↓
+                             ACTION (repository + notification)
+                                  ↓
+                             UNDO TOKEN (opsional, untuk snackbar Undo)
 ```
 
 Poin penting:
 
+- Perintah lanjutan (PHASE 12) dicek sebelum Rule Parser: kalimat berawal
+  kata kerja `ubah`/`hapus`/`selesaikan`/`tunda` merujuk **item terakhir**
+  dari `LastItemContext` (tersimpan di preferensi, bertahan setelah restart).
+  `hapus` selalu minta konfirmasi; tanpa konteks → balasan penjelasan.
 - Rule Parser bekerja lebih dulu. AI hanya dipanggil jika confidence rendah.
 - AI menghasilkan JSON, bukan aksi. Validator memutuskan apakah JSON layak
   dipakai.

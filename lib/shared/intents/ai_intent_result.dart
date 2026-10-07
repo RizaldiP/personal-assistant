@@ -10,12 +10,17 @@ class AiIntentResult {
     required this.confidence,
     this.entities = const {},
     this.needsConfirmation = false,
+    this.rawJson,
   });
 
   final AppIntent intent;
   final double confidence;
   final Map<String, dynamic> entities;
   final bool needsConfirmation;
+
+  /// JSON mentah hasil model, hanya untuk log/debug lokal; tidak pernah
+  /// dikirim ke mana pun dan tidak ikut diserialisasi oleh [toJson].
+  final String? rawJson;
 
   bool get isKnown => intent != AppIntent.unknown;
 

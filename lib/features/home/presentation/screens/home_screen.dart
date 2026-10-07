@@ -7,6 +7,10 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/empty_state.dart';
 import '../../../chat/presentation/screens/chat_screen.dart';
 import '../../../finance/presentation/screens/finance_screen.dart';
+import '../../../ideas/presentation/screens/ideas_screen.dart';
+import '../../../journal/presentation/screens/journal_screen.dart';
+import '../../../notes/presentation/screens/notes_screen.dart';
+import '../../../search/presentation/screens/search_screen.dart';
 import '../../../shopping/presentation/screens/shopping_screen.dart';
 import '../../../todo/domain/entities/task.dart';
 import '../../../todo/presentation/providers/task_controller.dart';
@@ -39,11 +43,27 @@ class HomeScreen extends ConsumerWidget {
                 AppSpacing.lg,
               ),
               children: [
-                Text(
-                  'Selamat ${_greeting(now.hour)} 👋',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Selamat ${_greeting(now.hour)} 👋',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('home-search-button'),
+                      tooltip: 'Pencarian',
+                      icon: const Icon(Icons.search),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SearchScreen(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
@@ -62,8 +82,7 @@ class HomeScreen extends ConsumerWidget {
                 const SizedBox(height: AppSpacing.sm),
                 const _TodaySection(),
                 const SizedBox(height: AppSpacing.sm),
-                const _ShoppingEntry(),
-                const _FinanceEntry(),
+                const _HomeEntries(),
               ],
             ),
           ),
@@ -143,38 +162,52 @@ class _TodaySection extends ConsumerWidget {
   }
 }
 
-class _ShoppingEntry extends StatelessWidget {
-  const _ShoppingEntry();
+/// Pintu masuk layar fitur: belanja, keuangan, catatan, jurnal, ide.
+class _HomeEntries extends StatelessWidget {
+  const _HomeEntries();
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: TextButton.icon(
-        onPressed: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute<void>(builder: (_) => const ShoppingScreen())),
-        icon: const Icon(Icons.shopping_basket_outlined),
-        label: const Text('Daftar belanja'),
-      ),
-    );
-  }
-}
-
-class _FinanceEntry extends StatelessWidget {
-  const _FinanceEntry();
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: TextButton.icon(
-        onPressed: () => Navigator.of(
-          context,
-        ).push(MaterialPageRoute<void>(builder: (_) => const FinanceScreen())),
-        icon: const Icon(Icons.account_balance_wallet_outlined),
-        label: const Text('Keuangan'),
-      ),
+    return Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
+      children: [
+        TextButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const ShoppingScreen()),
+          ),
+          icon: const Icon(Icons.shopping_basket_outlined),
+          label: const Text('Daftar belanja'),
+        ),
+        TextButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const FinanceScreen()),
+          ),
+          icon: const Icon(Icons.account_balance_wallet_outlined),
+          label: const Text('Keuangan'),
+        ),
+        TextButton.icon(
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const NotesScreen())),
+          icon: const Icon(Icons.notes_outlined),
+          label: const Text('Catatan'),
+        ),
+        TextButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(builder: (_) => const JournalScreen()),
+          ),
+          icon: const Icon(Icons.menu_book_outlined),
+          label: const Text('Jurnal'),
+        ),
+        TextButton.icon(
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute<void>(builder: (_) => const IdeasScreen())),
+          icon: const Icon(Icons.lightbulb_outline),
+          label: const Text('Ide'),
+        ),
+      ],
     );
   }
 }

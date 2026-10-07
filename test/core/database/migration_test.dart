@@ -81,7 +81,7 @@ void main() {
   });
 
   test(
-    'v1 -> v4: data utuh, kolom jejak NLP dan tabel belanja/pengeluaran ditambahkan',
+    'v1 -> v6: data utuh, kolom NLP & tabel belanja/pengeluaran/catatan/jurnal/ide/tag/inbox ditambahkan',
     () async {
       final raw = sqlite.sqlite3.open(path);
       try {
@@ -109,7 +109,7 @@ void main() {
       addTearDown(db.close);
 
       final version = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(version.data['user_version'], 4, reason: 'user_version naik ke 4');
+      expect(version.data['user_version'], 6, reason: 'user_version naik ke 6');
 
       final task = await db.taskDao.getById(1);
       expect(task!.title, 'Tugas lama');
@@ -261,17 +261,169 @@ void main() {
       expect(newTask!.source, 'chat');
       expect(newTask.rawInput, 'buat tugas baru');
       expect(newTask.confidence, closeTo(0.93, 0.0001));
+
+      final phase9Tables = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN "
+            "('notes', 'journal_entries', 'ideas', 'tags', 'tag_links')",
+          )
+          .get();
+      expect(
+        phase9Tables,
+        hasLength(5),
+        reason: 'tabel catatan/jurnal/ide/tag dibuat di v5',
+      );
+
+      final noteColumns = await db
+          .customSelect('PRAGMA table_info(notes)')
+          .get();
+      expect(
+        noteColumns.map((r) => r.data['name'] as String),
+        containsAll([
+          'id',
+          'title',
+          'content',
+          'source',
+          'raw_input',
+          'confidence',
+          'created_at',
+          'updated_at',
+        ]),
+      );
+
+      final journalColumns = await db
+          .customSelect('PRAGMA table_info(journal_entries)')
+          .get();
+      expect(
+        journalColumns.map((r) => r.data['name'] as String),
+        containsAll(['id', 'date', 'content', 'mood', 'source']),
+      );
+
+      final ideaColumns = await db
+          .customSelect('PRAGMA table_info(ideas)')
+          .get();
+      expect(
+        ideaColumns.map((r) => r.data['name'] as String),
+        containsAll(['id', 'title', 'content', 'status', 'source']),
+      );
+      final ideaStatus = await db
+          .customSelect('SELECT status FROM ideas')
+          .get();
+      expect(ideaStatus, isEmpty);
+
+      final linkFk = await db
+          .customSelect(
+            'SELECT COUNT(*) AS total FROM pragma_foreign_key_list('
+            "'tag_links') WHERE \"table\" = 'tags'",
+          )
+          .getSingle();
+      expect(
+        linkFk.data['total'],
+        greaterThan(0),
+        reason: 'tag_links cascade ke tags',
+      );
+
+      final phase9Indexes = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND name IS NOT NULL",
+          )
+          .get();
+      final phase9IndexNames = phase9Indexes
+          .map((row) => row.data['name'])
+          .toSet()
+          .cast<String>();
+      expect(
+        phase9IndexNames,
+        containsAll(<String>[
+          'idx_notes_created_at',
+          'idx_journal_entries_date',
+          'idx_ideas_status',
+          'idx_tags_name',
+        ]),
+      );
+
+      final newNoteId = await db.noteDao.insert(
+        NotesCompanion.insert(
+          content: 'Catatan pasca migrasi',
+          source: const Value('rule'),
+          createdAt: 555,
+          updatedAt: 555,
+        ),
+      );
+      expect(await db.noteDao.getById(newNoteId), isNotNull);
+
+      final tagId = await db.tagDao.insertTag(
+        TagsCompanion.insert(name: 'kapal', createdAt: 555, updatedAt: 555),
+      );
+      await db.tagDao.link(tagId, 'note', newNoteId, now: 555);
+      final linked = await db.tagDao.tagsForEntity('note', newNoteId);
+      expect(linked.single.name, 'kapal', reason: 'tabel tag dapat diisi');
+
+      final inboxTables = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = "
+            "'inbox_items'",
+          )
+          .get();
+      expect(inboxTables, hasLength(1), reason: 'tabel inbox dibuat di v6');
+
+      final inboxColumns = await db
+          .customSelect('PRAGMA table_info(inbox_items)')
+          .get();
+      expect(
+        inboxColumns.map((r) => r.data['name'] as String),
+        containsAll([
+          'id',
+          'chat_message_id',
+          'raw_text',
+          'suggestion',
+          'resolution',
+          'resolved_entity_type',
+          'resolved_entity_id',
+          'created_at',
+          'updated_at',
+        ]),
+      );
+
+      final inboxIndexes = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND name = "
+            "'idx_inbox_items_resolution'",
+          )
+          .get();
+      expect(inboxIndexes, hasLength(1), reason: 'indeks resolution dibuat');
+
+      final chatId = await db.chatMessageDao.insertMessage(
+        ChatMessagesCompanion.insert(
+          role: 'user',
+          content: 'tadi makan ayam',
+          createdAt: 666,
+          updatedAt: 666,
+        ),
+      );
+      final inboxId = await db.inboxItemDao.insertItem(
+        InboxItemsCompanion.insert(
+          chatMessageId: Value(chatId),
+          rawText: 'tadi makan ayam',
+          suggestion: const Value('create_expense'),
+          createdAt: 666,
+          updatedAt: 666,
+        ),
+      );
+      final inboxItem = await db.inboxItemDao.getById(inboxId);
+      expect(inboxItem!.resolution, 'open', reason: 'default resolution');
+      expect(inboxItem.suggestion, 'create_expense');
     },
   );
 
   test(
-    'database baru dibuat langsung pada skema v4 lengkap dengan indeks',
+    'database baru dibuat langsung pada skema v6 lengkap dengan indeks',
     () async {
       final db = AppDatabase(NativeDatabase(File(path)));
       addTearDown(db.close);
 
       final version = await db.customSelect('PRAGMA user_version').getSingle();
-      expect(version.data['user_version'], 4);
+      expect(version.data['user_version'], 6);
 
       final newTaskId = await db.taskDao.insertTask(
         TasksCompanion.insert(
@@ -296,6 +448,11 @@ void main() {
       expect(indexNames, contains('idx_shopping_items_list_id'));
       expect(indexNames, contains('idx_expenses_date'));
       expect(indexNames, contains('idx_expenses_category'));
+      expect(indexNames, contains('idx_notes_created_at'));
+      expect(indexNames, contains('idx_journal_entries_date'));
+      expect(indexNames, contains('idx_ideas_status'));
+      expect(indexNames, contains('idx_tags_name'));
+      expect(indexNames, contains('idx_inbox_items_resolution'));
     },
   );
 }

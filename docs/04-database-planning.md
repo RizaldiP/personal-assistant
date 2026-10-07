@@ -238,7 +238,7 @@ Sumber kebenaran untuk state jangka panjang; Riverpod hanya cache.
 
 ## 3. Entity tambahan (di luar daftar minimal)
 
-### InboxItem (PHASE 13)
+### InboxItem (PHASE 13) — **DIIMPLEMENTASI (schemaVersion 6)**
 
 Daftar input yang confidence-nya rendah / unresolved.
 
@@ -257,6 +257,13 @@ Alasan menambah: entitas minimal di spec tidak punya tempat untuk state
 "belum yakin", dan Smart Inbox adalah fitur phase 13. Alternatif (menumpuk di
 Note) dianggap kurang jelas karena butuh kolom status khusus yang tidak relevan
 dengan Note biasa.
+
+Implementasi (PHASE 13): tabel `inbox_items` + `InboxItemDao`
+(`watchAll` terurut `createdAt` desc, `getOpen`, `insertItem`, `updateItem`,
+`deleteItem`); domain `InboxItem` + `InboxResolution` (`open`/`converted`/
+`discarded`) di `features/inbox/domain`; drift row di-map oleh
+`InboxRepositoryImpl`. Relasi `chat_message_id` FK → `chat_messages.id`
+CASCADE. Migrasi `_upgradeToV6` diuji `migration_test.dart`.
 
 ## 4. ER ringkas
 
@@ -312,5 +319,5 @@ Aturan migrasi:
 | Reminder aktif berikutnya | `status='active' AND next_fire_at <= :now` |
 | Total bulanan | `SUM(amount) FROM expense WHERE date BETWEEN :from AND :to` |
 | Total harian per kategori | `GROUP BY category, date` |
-| Search global | `LIKE :q` pada kolom judul/konten tiap tabel |
+| Search global | `LIKE :q` pada kolom judul/konten tiap tabel (PHASE 13: `SearchRepositoryImpl`, escape `%`/`_`, batas `limitPerType` per tipe) |
 | Checklist belum selesai | `list_id=:id AND is_checked=0` |

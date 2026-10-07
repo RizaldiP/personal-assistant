@@ -4,15 +4,27 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:personal_offline/app.dart';
+import 'package:personal_offline/core/ai/local_ai_runtime.dart';
 import 'package:personal_offline/core/database/database_provider.dart';
 import 'package:personal_offline/core/utils/clock.dart';
 import 'package:personal_offline/features/chat/data/repositories/chat_repository_impl.dart';
 import 'package:personal_offline/features/home/presentation/screens/home_screen.dart';
+import 'package:personal_offline/features/ideas/data/repositories/idea_repository_impl.dart';
+import 'package:personal_offline/features/inbox/data/repositories/inbox_repository_impl.dart';
+import 'package:personal_offline/features/journal/data/repositories/journal_repository_impl.dart';
+import 'package:personal_offline/features/notes/data/repositories/note_repository_impl.dart';
+import 'package:personal_offline/features/reminder/data/repositories/reminder_repository_impl.dart';
 import 'package:personal_offline/features/todo/data/repositories/task_repository_impl.dart';
 import 'package:personal_offline/features/todo/domain/entities/task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/fake_chat_repository.dart';
+import 'helpers/fake_idea_repository.dart';
+import 'helpers/fake_inbox_repository.dart';
+import 'helpers/fake_journal_repository.dart';
+import 'helpers/fake_local_ai.dart';
+import 'helpers/fake_note_repository.dart';
+import 'helpers/fake_reminder_repository.dart';
 import 'helpers/fake_task_repository.dart';
 
 Finder _navDestination(String label) =>
@@ -29,6 +41,13 @@ Future<void> _pumpApp(
         taskRepositoryProvider.overrideWithValue(
           taskRepository ?? FakeTaskRepository(),
         ),
+        // Repo diganti fake: layar Kalender/Inbox menonton stream; stream
+        // drift menytupkan query stream lewat timer yang gagal diinvarian
+        // widget test bila provider dibuang saat tree dibongkar.
+        reminderRepositoryProvider.overrideWithValue(FakeReminderRepository()),
+        journalRepositoryProvider.overrideWithValue(FakeJournalRepository()),
+        inboxRepositoryProvider.overrideWithValue(FakeInboxRepository()),
+        localAiRuntimeProvider.overrideWithValue(buildFakeRuntime()),
         ...overrides,
       ],
       child: const PersonalOfflineApp(),
@@ -128,6 +147,39 @@ void main() {
       expect(find.text('Belum ada percakapan'), findsOneWidget);
       expect(find.byType(TextField), findsOneWidget);
     });
+
+    testWidgets('entri Catatan, Jurnal, dan Ide membuka layar masing-masing', (
+      tester,
+    ) async {
+      await _pumpApp(
+        tester,
+        overrides: [
+          noteRepositoryProvider.overrideWithValue(FakeNoteRepository()),
+          ideaRepositoryProvider.overrideWithValue(FakeIdeaRepository()),
+        ],
+      );
+
+      await tester.ensureVisible(find.text('Catatan'));
+      await tester.tap(find.text('Catatan'));
+      await tester.pumpAndSettle();
+      expect(find.text('Belum ada catatan'), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Jurnal'));
+      await tester.tap(find.text('Jurnal'));
+      await tester.pumpAndSettle();
+      expect(find.text('Belum ada jurnal'), findsOneWidget);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.text('Ide'));
+      await tester.tap(find.text('Ide'));
+      await tester.pumpAndSettle();
+      expect(find.text('Belum ada ide'), findsOneWidget);
+    });
   });
 
   group('Navigasi', () {
@@ -137,7 +189,7 @@ void main() {
 
       await tester.tap(_navDestination('Kalender'));
       await tester.pumpAndSettle();
-      expect(find.text('Kalender kosong'), findsOneWidget);
+      expect(find.text('Tidak ada kejadian'), findsOneWidget);
 
       await tester.tap(_navDestination('Inbox'));
       await tester.pumpAndSettle();

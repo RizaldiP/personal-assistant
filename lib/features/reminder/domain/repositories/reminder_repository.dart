@@ -4,6 +4,9 @@ import '../entities/reminder.dart';
 abstract interface class ReminderRepository {
   Stream<List<Reminder>> watchActive();
 
+  /// Semua reminder (aktif maupun selesai) — dipakai kalender (PHASE 13).
+  Stream<List<Reminder>> watchAll();
+
   Future<Reminder?> getById(int id);
 
   Future<List<Reminder>> getAll();

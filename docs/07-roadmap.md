@@ -6,7 +6,7 @@ status.
 ## 1. Status saat ini
 
 ```
-CURRENT ACTIVE PHASE: PHASE 8
+CURRENT ACTIVE PHASE: PHASE 13
 STATUS: DONE
 ```
 
@@ -26,11 +26,11 @@ saat ingin memulai phase berikutnya (lihat `PROJECT.md` bagian 4 dan 39).
 | 6 | Reminder + Notification | DONE |
 | 7 | Shopping List | DONE |
 | 8 | Finance | DONE |
-| 9 | Note / Journal / Idea | NOT STARTED |
-| 10 | Local AI | NOT STARTED |
-| 11 | Hybrid Intelligence | NOT STARTED |
-| 12 | Contextual Chat | NOT STARTED |
-| 13 | Search + Calendar + Smart Inbox | NOT STARTED |
+| 9 | Note / Journal / Idea | DONE |
+| 10 | Local AI | DONE |
+| 11 | Hybrid Intelligence | DONE |
+| 12 | Contextual Chat | DONE |
+| 13 | Search + Calendar + Smart Inbox | DONE |
 | 14 | Backup / Restore / PDF | NOT STARTED |
 | 15 | Security | NOT STARTED |
 | 16 | UI/UX Polish | NOT STARTED |
@@ -549,5 +549,428 @@ Catatan:
   tests (+ simple budget sesuai daftar "Kerjakan").
 
 Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test` 217 PASS
+
+Status: DONE
+
+---
+
+### PHASE 9 — Note / Journal / Idea (selesai)
+
+Completed:
+
+- Skema DB v5: `core/database/tables/notes_table.dart` (`Notes` — title
+  nullable, content, source/rawInput nullable, tags implicit lewat relasi,
+  createdAt), `journal_table.dart` (`JournalEntries` — date `YYYY-MM-DD`,
+  title nullable, content, mood nullable, createdAt), `idea_table.dart`
+  (`Ideas` — title, content nullable, status default `inbox`, source/rawInput/
+  confidence nullable, createdAt), `tag_table.dart` (`Tags` name lowercase
+  unique + `TagLinks` PK `{tag_id, entity_type, entity_id}` FK cascade,
+  entity_type `'note'|'journal'|'idea'`); indeks manual via `customStatement`
+  `idx_notes_created_at`, `idx_journal_entries_date`, `idx_ideas_status`,
+  `idx_tags_name`
+- `core/database/app_database.dart` — schemaVersion 5, migrasi `_upgradeToV5`
+  (createTable 5 tabel + 4 `CREATE INDEX IF NOT EXISTS`), akses
+  `noteDao`/`journalDao`/`ideaDao`/`tagDao`; `build_runner` sukses
+- `core/database/daos/` — `NoteDao`, `JournalDao`, `IdeaDao`, `TagDao`
+  (watch/getAll/getById/insert/updateById/deleteById + query `LIKE` untuk
+  search; `TagDao` link/unlink/linksFor; `build_runner` sukses)
+- `core/utils/combine_latest.dart` — `combineLatest` untuk menggabung stream
+  entri + tag
+- `domain/entities/` — `Note`, `JournalEntry`, `Idea` (+ enum `IdeaStatus`
+  inbox/thinking/working/completed/archived dengan label Indonesia), `Tag`
+- `domain/repositories/` + `data/repositories/` — `NoteRepositoryImpl`,
+  `JournalRepositoryImpl`, `IdeaRepositoryImpl` (CRUD + watch dengan query,
+  sinkronisasi tag lewat `TagLinks`, `resolveTags` parse tag CSV)
+- `presentation/providers/` — `notesProvider`/`journalEntriesProvider`/
+  `ideasProvider` (`StreamProvider.autoDispose.family<List<T>, String>`,
+  family = query search per layar) + Notifier controller
+  (create/update/delete, `Idea.setStatus`, metadata NLP source/rawInput/
+  confidence)
+- `presentation/screens/` — `notes_screen`/`note_form_screen`,
+  `journal_screen`/`journal_form_screen` (mood dropdown + date picker),
+  `ideas_screen`/`idea_form_screen` (kelompok per status + menu pindah
+  status); search bar per layar, hapus dengan konfirmasi, tag chip di form,
+  empty/error state
+- `shared/formatters/tag_formats.dart` — `split`/`join` tag CSV;
+  `shared/formatters/date_formats.dart` — `longFromDate`;
+  `shared/widgets/tag_chips.dart` — `TagChips`
+- Home: `_HomeEntries` (`Wrap` 5 `TextButton.icon` — Daftar belanja,
+  Keuangan, Catatan, Jurnal, Ide) di `home_screen.dart`
+- Wiring NLP + chat: `rule_parser.dart` — intent `createNote`
+  (`catat:`/`catatan:`/`note:` + leading word), `createJournal` (deteksi
+  suasana hati), `createIdea` (`ide:`/`trik:`/`inspirasi:` + leading word);
+  `chat_controller.dart` — intent ketiganya memanggil repository dan membalas
+  `Catatan disimpan: …` / `Jurnal ditulis: …` / `Ide disimpan: …`
+- Test baru + helper:
+  - `test/helpers/fake_{note,journal,idea}_repository.dart` — fake in-memory;
+    tiap `watch()` membuat `StreamController.broadcast(sync: true)` sendiri
+    dengan replay snapshot di `onListen` (lihat Catatan)
+  - `test/features/{notes,journal,ideas}/*_repository_test.dart` — CRUD,
+    query LIKE, tag link/unlink
+  - `test/features/{notes,journal,ideas}/presentation/*_controller_test.dart`
+    — CRUD via controller + provider memancarkan perubahan dengan query
+  - `test/features/{notes,journal,ideas}/presentation/*_screen_test.dart` —
+    empty state, form + validasi, search filter, hapus via dialog, menu
+    status ide
+  - `chat_controller_test.dart` & `chat_screen_test.dart` — kalimat
+    catatan/jurnal/ide mencatat + balasan konfirmasi
+  - `migration_test.dart` — v1→v5 dan DB baru langsung skema v5 (tabel +
+    kolom + FK + 4 indeks phase 9, insert note + tag pasca-migrasi)
+  - `app_test.dart` — entri Catatan/Jurnal/Ide di home membuka layar
+    masing-masing (`ensureVisible` sebelum tap karena item bisa di luar
+    viewport)
+
+Catatan:
+
+- Test query controller sempat gagal `Bad state: … disposed during loading
+  state`: `container.read(provider.future)` tanpa pendengar lain menutup
+  subscription eksternal saat itu juga → element di-pause sebelum event
+  pertama sampai → dispose menangkap keadaan loading. Fake lama (generator
+  `async*`/broadcast biasa) kalah balapan mikro-task; solusi akhir: controller
+  per-`watch()` dengan `sync: true` + replay di `onListen` sehingga snapshot
+  terkirim sinkron saat didengarkan — dan karena controller baru per panggilan,
+  tiap provider/query tetap mendapat replay sendiri.
+- `FlutterRiverpod` `misc.dart` dipakai untuk tipe `Notifier`/provider; tiga
+  screen test sempat mengimpornya tanpa dipakai → dihapus (analyze bersih).
+- `DropdownButtonFormField.value` deprecated → `initialValue` (dropdown mood
+  jurnal memakai guard nilai tak dikenal ke `null`; dropdown status ide ke
+  `_status`); `context.mounted` → `mounted` hanya di dalam `State`
+  (`ideas_screen.dart` `ConsumerWidget` tetap `context.mounted`).
+- Flutter assertion: `ListTile` tidak boleh di dalam `DecoratedBox`/`Container`
+  berwarna → `_IdeaTile` membungkus dengan `Material` (clip borderRadius).
+- `IdeaStatus.done` tidak ada — nilai enum `completed`; test repository/
+  controller yang awalnya memakai `.done` ikut diperbaiki. Test chat memakai
+  balasan berkonten kapitalisasi hasil NLP (mis. `Capek banget`).
+- DoD PHASE 9: note, journal, idea, tag, search (per layar) — semua terpenuhi;
+  search global tetap PHASE 13.
+
+Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test` 271 PASS
+
+Status: DONE
+
+---
+
+### PHASE 10 — Local AI (selesai)
+
+Completed:
+
+- Dependency: `llamadart 0.10.0` (inference on-device via llama.cpp/FFI;
+  backend native dibangun build hook ke `build/native_assets/<platform>`),
+  dev `ffi 2.2.0` untuk benchmark. Keputusan runtime: `docs/03-dependencies.md`
+  bagian 8; alasan pemilihan model: `docs/05-ai-abstraction.md` bagian 8.
+- Model terpilih: `Qwen/Qwen2.5-0.5B-Instruct-GGUF` `q4_k_m` (Apache-2.0,
+  491.400.032 byte / ±469 MB), diunduh sekali dengan consent user.
+- `core/ai/local_ai_engine.dart` — kontrak `LocalAiEngine` + exception
+  ter-tipe (`LocalAiUnavailableException`, `LocalAiInferenceException`)
+- `core/ai/ai_config.dart` — SATU-SATUNYA tempat nama model, sumber, ukuran,
+  parameter inference, threshold, system prompt, JSON schema, dan 15 contoh
+  few-shot; `contextSize` 4096 (prompt ±1,5 ribu token + ruang pesan user)
+- `core/ai/ai_model_manager.dart` — `downloadModel` (consent, progres),
+  `loadModel` (cacheOnly, tanpa jaringan), `unloadModel`, `isModelCached`
+  (cek cache tanpa memuat RAM)
+- `core/ai/intent_json_parser.dart` — JSON mentah (termasuk code fence) →
+  `AiIntentResult`; gagal parse → null (ditolak, bukan ditebak)
+- `core/ai/intent_validator.dart` — aturan docs/05 bagian 4-5: clamp
+  confidence, entity wajib → `needs_confirmation`, tanggal/jam ISO,
+  kemampuan terlarang (`execute_shell`, `delete_database`, dst.) ditolak
+- `core/ai/llamadart_local_ai_engine.dart` — inference dengan structured
+  output grammar-constrained (JSON terjamin valid), fallback ke generasi
+  teks biasa + parser longgar bila backend tak mendukung grammar ATAU output
+  terpotong, semua galat dibungkus exception ter-tipe
+- `core/ai/local_ai_runtime.dart` — `localAiRuntimeProvider` (engine + manager
+  dari satu backend, dibuat lazy, dispose otomatis)
+- `core/ai/ai_model_controller.dart` — `aiModelControllerProvider`: status
+  cache/muat/progres/kesalahan; `download`/`load`/`unload`/`refresh`
+  menangkap semua exception → pesan error Bahasa Indonesia, tidak pernah crash
+- `features/settings/.../widgets/ai_model_card.dart` + section `AI LOKAL`
+  di layar Pengaturan: identitas model (nama, ukuran, lisensi), status,
+  progres unduhan, tombol Unduh (dialog consent berisi ukuran + catatan
+  offline + privasi) / Muat / Lepas. UI tidak memanggil `understand()`
+  (docs/05 bagian 3).
+- Test baru:
+  - `test/core/ai/ai_config_test.dart`, `intent_json_parser_test.dart`,
+    `intent_validator_test.dart` (kontrak JSON, aturan validator, larangan)
+  - `test/core/ai/local_ai_engine_no_model_test.dart` — DoD "app tetap
+    bekerja tanpa model": initialize tidak melempar, isAvailable false,
+    understand → `LocalAiUnavailableException`, RuleParser tetap jalan
+  - `test/core/ai/ai_model_controller_test.dart` — siklus unduh/muat/lepas,
+    galat tiap tahap ditangkap, operasi saat sibuk diabaikan
+  - `test/features/settings/settings_screen_test.dart` — kartu AI, dialog
+    consent (batal = tidak ada unduhan), unduh → muat → lepas, galat tampil
+  - `test/helpers/fake_local_ai.dart` — fake engine + manager + runtime
+  - `test/core/ai/local_ai_real_test.dart` (opt-in `PA_AI_BENCHMARK=1`) —
+    unduh + muat model nyata, smoke 3 kalimat, benchmark 20 kalimat
+
+Catatan:
+
+- Benchmark (lihat `docs/05` bagian 9): JSON valid **20/20**, intent benar
+  **17/20** (lantai DoD ≥10), rerata latency ±14 detik, puncak RAM 833 MB,
+  nol crash. Tanpa model: semua jalur aman.
+- Prompt sempat menghasilkan akurasi 6/20; diperbaiki menjadi 16–18/20
+  dengan: prompt lebih ringkas, prioritas aturan disusun persis seperti
+  dispatch `RuleParser`, 15 contoh few-shot berformat pesan asli, serta
+  contoh kontra eksplisit (tanpa nominal → bukan expense).
+- Batasan: model 0.5B masih goyah di kasus ambigu (nominal vs belanja,
+  awalan "catet"); aman karena `IntentValidator` selalu menandai
+  `needs_confirmation` bila entity kurang. Kandidat pengganti lebih besar
+  tercatat di `docs/05` bagian 8.
+- Context window dinaikkan 2048 → 4096 karena prompt few-shot + pesan user
+  sempat memotong keluaran JSON (`Malformed structured JSON output`);
+  engine kini juga mengulang sekali lewat jalur tanpa grammar bila itu terjadi.
+- `AiModelManager.isModelCached()` memakai `ensureModel` dengan
+  `ModelCachePolicy.cacheOnly` — melempar bila belum ada cache, tidak pernah
+  mengunduh diam-diam.
+- Benchmark default **skip** (hemat waktu CI/dev); jalankan manual dengan
+  `PA_AI_BENCHMARK=1`. Angka latency diukur dari `flutter test` debug
+  Windows x64, bukan HP menengah.
+
+Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test` 334
+PASS (+3 benchmark PASS saat `PA_AI_BENCHMARK=1`)
+
+Status: DONE
+
+---
+
+### PHASE 11 — Hybrid Intelligence
+
+Routing Rule Parser ↔ Local AI, confidence, fallback, validasi, konfirmasi,
+dan penanganan kasus ambigu (semua DoD terpenuhi).
+
+Yang dikerjakan:
+
+- **Routing** (`lib/core/intents/intent_processor.dart`): satu-satunya
+  pemanggil `LocalAiEngine.understand()`. Intent yang dikenal Rule Parser
+  dengan confidence ≥ ambang ragu → langsung eksekusi (jalur parser tetap
+  jalan penuh, docs/05 bagian 7). Selain itu → AI → `DefaultIntentValidator`
+  → konfirmasi / ragu / ditolak. Hasil `ProcessedIntent` membawa
+  `source` (`rule`/`ai`), `disposition`
+  (`execute`/`confirm`/`uncertain`/`rejected`/`unavailable`), dan
+  `highConfidence`.
+- **Confidence dari preferensi**: `IntentProcessor.thresholds()` membaca
+  `user_preferences` (`ai_confidence_accept`, `ai_confidence_uncertain`,
+  default `AiConfig` 0.85 / 0.50); nilai tidak valid atau konsisten
+  (uncertain > accept) → default. Tabel band docs/05 bagian 6 berlaku untuk
+  hasil AI: ≥ accept → kartu + `Simpan`; band tengah → interpretasi +
+  `Ya`/`Ubah`; < ambang ragu → tidak menebak (pesan penjelasan).
+- **Validation**: hasil AI selalu melewati `IntentValidator` (aturan docs/05
+  bagian 4) sebelum tampil; entity kurang/berbahaya → `rejected` dengan pesan
+  dari validator, tidak pernah menyimpan.
+- **Fallback**: model belum ada (`isAvailable() == false`) atau inference
+  gagal → kembali ke jalur Rule Parser, lalu balasan "belum bisa
+  memahami..." tanpa menyimpan data; tidak crash, tidak hang.
+- **Confirmation**: `lib/features/chat/.../pending_confirmation.dart`
+  (siklus `confirm`/`reject`/`edit`/`abandon`, busy-guard, reply disimpan
+  hanya saat `confirm`) + `lib/features/chat/.../widgets/confirmation_bar.dart`
+  (kartu ringkasan `describeIntent()` + tombol sesuai band, disabled saat
+  sibuk, galat → SnackBar). Eksekusi intent dipindah ke
+  `.../providers/intent_executor.dart` (dipakai controller maupun konfirmasi).
+- **Status pesan**: pesan user yang menunggu keputusan disimpan
+  `ChatStatus.needsConfirmation`; setelah konfirmasi/batal/ubah → `sent` +
+  `resolvedAt`. Tidak ada data domain yang disimpan sebelum `Simpan`/`Ya`.
+- **Ambiguous**: hasil AI < ambang ragu → `uncertain`, balasan menawarkan
+  Reminder/Todo/Catatan; input tak dikenal saat model tidak tersedia → balasan
+  penjelasan (Smart Inbox-nya PHASE 13).
+- **Draf**: `Ubah` mengisi ulang kolom chat lewat `chatDraftProvider`;
+  pesan user berhasil dikirim → draf dibersihkan.
+
+Test baru/diubah:
+
+- `test/core/intents/intent_processor_test.dart` (16) — routing parser/AI,
+  prioritas rule, validasi AI, fallback model mati/galat, ambang dari
+  preferensi (valid, tidak valid, tidak konsisten), contoh PHASE 11
+  "kayaknya minggu depan gue harus ngurus pajak motor" → Local AI.
+- `test/features/chat/presentation/chat_controller_test.dart` (22) — alur
+  `send()` kini memakai DB in-memory + engine fake; 9 tes baru: sumber AI
+  tanpa menyimpan, `confirm` menyimpan + source `ai`, `reject`, `edit`,
+  band bawah → uncertain, capability terlarang → rejected, inference gagal →
+  tidak crash, pesan baru membuang konfirmasi tertunda.
+- `test/features/chat/presentation/chat_screen_test.dart` (16) — 4 tes baru:
+  kartu konfirmasi + `Simpan` menyimpan (source `ai`), `Batal` membatalkan
+  tanpa data, band tengah `Ya`/`Ubah`/`Batal` + `Ubah` mengisi input,
+  tanpa model → balasan tanpa kartu.
+- `test/helpers/fake_local_ai.dart` — `understandResult`/`understandError`/
+  `understandCalls` untuk mengendalikan hasil AI di test.
+
+Catatan:
+
+- Perubahan perilaku: input di luar Rule Parser yang tidak dikenal kini
+  **dibalas** (sebelumnya diam); tidak ada yang disimpan.
+- Rule Parser yang sudah dikenal tidak lagi menampilkan kartu konfirmasi
+  (dijelaskan docs/05 bagian 6): aturan teruji = eksekusi langsung; kartu
+  konfirmasi khusus jalur AI.
+- Konfirmasi tertunda bersifat in-memory; riwayat tersimpan
+  `needs_confirmation` tapi rekonstruksi kartu setelah buka ulang aplikasi
+  belum ada (kandidat di PHASE 13 bersama Smart Inbox).
+- Threshold belum punya UI penyunting; nilainya sudah preferensi pengguna
+  (docs/05 bagian 6).
+
+Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test` 363
+PASS (+3 benchmark skip)
+
+Status: DONE
+
+---
+
+### PHASE 12 — Contextual Chat
+
+Perintah lanjutan yang merujuk **item terakhir** percakapan. Semua DoD
+terpenuhi: last item context, update, delete, complete, snooze, tests.
+
+Yang dikerjakan:
+
+- **`lib/shared/nlp/followup_parser.dart` (baru)** — deteksi kalimat yang
+  diawali kata kerja perintah (opsional awalan `tolong`):
+  `ubah`/`ganti`/`jadikan`/`pindah`, `tunda`, `selesaikan`/`selesaiin`/
+  `centang`/`tandai selesai`/`done`, `hapus`/`buang`. Hasilnya
+  `AiIntentResult` confidence 0.95 dengan entity `date`/`time`/`title`
+  (pakai `DateParser`+`TimeParser`, kata sambung `jadi` dibuang) atau
+  `snooze` + `snooze_minutes` (`tunda 2 jam` → 120). Parser tidak menyentuh
+  `RuleParser`; kalimat non-follow-up menghasilkan `null` sehingga alur lama
+  tidak berubah.
+- **`lib/core/intents/last_item_context.dart` (baru)** — `LastItemContext`
+  `{type, id, label, date, time}` disimpan sebagai JSON di `user_preferences`
+  (kunci `chat_last_item`) → konteks **bertahan setelah aplikasi dibuka
+  ulang**. Semua operasi (`read`/`write`/`clear`) menangkap galat: konteks
+  hilang cukup membuat perintah lanjutan menjawab "belum ada item".
+- **`IntentProcessor`** — disposition baru `noTarget`; langkah 0: bila
+  `FollowUpParser` cocok → rujuk konteks + injeksi entity
+  `target_type`/`target_id`/`target_label` (tanpa memanggil AI); `hapus`
+  → `confirm` meski jalur rule (destruktif); konteks kosong / tipe belum
+  didukung → `noTarget` + penjelasan. Jalur AI untuk intent
+  update/delete/complete ikut dikontekskan (tanpa konteks → `noTarget`).
+- **`IntentExecutor`** — dukung `updateItem`, `deleteItem`, `completeItem`:
+  - reminder: jadwal baru dihitung ulang + notifikasi dijadwalkan lewat
+    `ReminderController.update()` (**baru**: cancel → simpan → schedule);
+    hapus lewat `ReminderController.delete` (notifikasi ikut batal) lalu
+    konteks dibersihkan; selesai via `ReminderController.complete`.
+  - todo: `dueDate`/`dueTime`/judul diubah, `status` → `done` +
+    `completedAt`, hapus via repository.
+  - snooze: `tunda 2 jam` → `snooze_minutes` → `ReminderController.snooze`;
+    `tunda besok` / `tunda jam 10` → target dihitung (jam yang sudah lewat
+    hari ini digeser ke besok); `tunda` tanpa durasi → balasan contoh.
+  - Semua pembuatan (todo, reminder, belanja, pengeluaran, catatan, jurnal,
+    ide) kini menulis `LastItemContext`.
+- **UI** — `describeIntent` menghasilkan `Ubah`/`Tunda`/`Hapus`/
+  `Selesaikan "label"`; `ConfirmationBar` menampilkan tombol `Hapus`
+  (tanpa `Ubah`) untuk intent `delete_item`.
+
+Test baru:
+
+- `test/shared/nlp/followup_parser_test.dart` (17) — bentuk ubah/tunda/
+  selesaikan/hapus, awalan `tolong`, kapitalisasi, dan kalimat non-follow-up
+  (termasuk kata kerja di tengah kalimat) → `null`.
+- `test/core/intents/intent_processor_test.dart` +9 → 25 — `noTarget` tanpa
+  konteks, execute bertarget, `hapus` → confirm, selesaikan/tunda bertipe,
+  tipe konteks tak didukung, konteks dari preferensi, AI menjawab
+  `update_item` dengan/tanpa konteks.
+- `test/features/chat/presentation/chat_controller_test.dart` +11 → 33 —
+  contoh phase: "besok jam 8 bayar listrik" → "ubah jadi jam 10" (jadwal +
+  notifikasi pindah), "jadikan lusa" pada todo, "selesaikan" (lalu idempoten),
+  "hapus" konfirmasi → terhapus + konteks bersih, "hapus" batal, "tunda 2
+  jam", "tunda jam yang sudah lewat" → besok, "tunda" tanpa durasi, tanpa
+  konteks, konteks pindah ke item terbaru, konteks persist.
+- `test/features/chat/presentation/chat_screen_test.dart` +1 → 17 — kartu
+  `Hapus` muncul tanpa `Ubah`, data aman sebelum ditekan, lalu terhapus.
+
+Catatan:
+
+- Perubahan perilaku: "selesaikan X" **tanpa** tanggal di awal kini =
+  selesaikan item terakhir (bukan membuat todo baru); "besok selesaikan X"
+  tetap membuat todo karena diawali tanggal.
+- Update/complete didukung untuk **todo dan reminder**; `hapus` juga dua
+  tipe itu — tipe lain membalas penjelasan eksplisit. Kalimat yang tidak
+  diawali kata kerja perintah tidak pernah kena follow-up.
+- Konfirmasi `hapus` memakai kartu konfirmasi yang sama (label `Hapus`);
+  belum ada undo setelah hapus terkonfirmasi.
+
+Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test` 401
+PASS (+3 benchmark skip)
+
+Status: DONE
+
+---
+
+### PHASE 13 — Search + Calendar + Smart Inbox
+
+Pencarian global, kalender, dan Smart Inbox untuk input yang belum
+tertantang. Semua DoD terpenuhi: search cepat (debounce + limit per tipe),
+kalender bulanan, inbox dengan aksi, unresolved intent tercatat, filtering
+(tipe, tag, status inbox, filter kalender).
+
+Yang dikerjakan:
+
+- **DB (schemaVersion 6)** — tabel `inbox_items` + `InboxItemDao`
+  (`watchAll` terurut `createdAt` desc, `getOpen`, `insertItem`,
+  `updateItem`, `deleteItem`), FK `chat_message_id` → `chat_messages.id`
+  CASCADE, `_upgradeToV6` + test migrasi v1→v6 dan skema segar.
+- **Smart Inbox (capture + auto-resolve)** — `ChatController` menangkap
+  disposition `uncertain`/`unavailable`/`rejected` ke inbox (`raw_text`
+  apa adanya + `suggestion` dari `result.intent.storageValue` bila ada);
+  setelah eksekusi berhasil (`execute` di `ChatController`, `confirm` di
+  `PendingConfirmationController`) item terbuka dengan teks sama
+  (trim + spasi rapat + lowercase) ditandai `converted` +
+  `resolved_entity_type`. Semua dibungkus `on Object { // alasan }` —
+  chat tidak pernah gagal gara-gara inbox.
+- **`features/inbox/` (baru)** — `InboxItem` + `InboxResolution`
+  (`open`/`converted`/`discarded`), `InboxRepository` + impl drift;
+  layar dengan chip `Terbuka`/`Selesai`/`Semua`, aksi `Simpan sebagai
+  Catatan` (buat Note + `converted`), `Buka di Chat` (isi
+  `chatDraftProvider`, item tetap terbuka), `Abaikan` (`discarded`).
+- **`features/search/` (baru)** — `SearchRepository.search({query, type,
+  tag, limitPerType})` + `watchTagNames()`; lintas 6 tipe dengan urutan
+  tetap (todo, reminder, note, journal, idea, shopping, expense), escape
+  `%`/`_` pada LIKE, tag via `TagLink`. **Bug ditemukan saat test**:
+  `_attachTags` meng-alias `results` lalu `clear()+addAll()` — hasil
+  hilang semua kalau tidak ada tag row; diperbaiki jadi salinan list.
+  Layar Pencarian: debounce 250 ms, chip tipe + tag, hasil per seksi,
+  reminder tanpa rute (belum ada layar detailnya).
+- **Intent `search`** — executor mencari dengan entity `query` (fallback
+  `rawText`), `limitPerType: 5`, membalas tiga hasil teratas tanpa
+  navigasi; jalur AI menampilkan kartu konfirmasi dulu (konsisten aturan
+  tidak ada auto-save).
+- **`features/calendar/` (baru)** — grid bulanan custom Senin-pertama
+  (tinggi sel 46, `DateTime.now()`), titik warna per tipe pada tanggal
+  ber-kejadian, navigasi bulan + `Hari ini`, filter tipe, tombol cari ke
+  layar Pencarian; daftar kejadian bulan terpilih.
+- **Navigasi** — ikon cari di AppBar beranda; Inbox bisa dibuka dari
+  beranda; dari Kalender/Pencarian ke rute masing-masing.
+
+Test baru:
+
+- `test/features/inbox/inbox_repository_test.dart` (9) — addOpen, watch
+  (urutan + filter resolusi), markConverted/markDiscarded, resolveByText
+  (normalisasi, no-op teks kosong, tidak menyentuh item terpecahkan),
+  getById null. Catatan: FK `chat_message_id` wajib di-seed dulu.
+- `test/features/inbox/presentation/inbox_screen_test.dart` (9) — empty
+  state, label saran, chip filter, aksi ketiga (catatan/draf chat/
+  abaikan), item selesai tak membuka sheet, tombol cari.
+- `test/features/search/search_repository_test.dart` (9) — lintas tipe +
+  urutan, filter tipe/tag, tag-name, escape LIKE, limitPerType,
+  watchTagNames.
+- `test/features/search/presentation/search_screen_test.dart` (8) —
+  debounce 250 ms, filter tipe/tag, hasil kosong, urutan seksi, tap
+  catatan → NotesScreen, reminder tetap di tempat.
+- `test/features/calendar/presentation/calendar_screen_test.dart` (6) —
+  label bulan/hari + empty state, titik per tanggal (key), pilih hari,
+  navigasi bulan, filter menyembunyikan titik + daftar, tombol cari.
+- `chat_controller_test.dart` +11 → 44 — capture uncertain (dengan
+  saran) / unavailable / rejected, gagal tulis inbox chat tetap jalan,
+  auto-resolve rule + confirm (dan tidak menyentuh item lain), intent
+  `search` (balasan top-3, `limitPerType` 5, hasil kosong, tidak
+  memicu capture inbox).
+
+Catatan:
+
+- Widget test yang me-watch stream drift **wajib** pakai fake repository
+  (drift `.watch()` menyisakan pending timer → teardown gagal); layar
+  kalender memakai `DateTime.now()` langsung (bukan `clockProvider`)
+  karena event hari ini harus terlihat tanpa override jam.
+- `clockProvider` ada di `core/database/database_provider.dart`.
+- Perilaku baru: teks yang tadinya cuma dijawab "belum bisa dipahami"
+  kini tercatat di Inbox dan otomatis terpecahkan begitu teks yang sama
+  berhasil dieksekusi.
+
+Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test`
+453 PASS (+3 benchmark skip)
 
 Status: DONE

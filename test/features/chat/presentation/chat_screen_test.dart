@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:personal_offline/core/ai/local_ai_runtime.dart';
+import 'package:personal_offline/core/database/app_database.dart' as db;
 import 'package:personal_offline/core/database/database_provider.dart';
 import 'package:personal_offline/core/services/notification_scheduler.dart';
 import 'package:personal_offline/core/utils/clock.dart';
@@ -14,12 +17,17 @@ import 'package:personal_offline/features/chat/presentation/providers/chat_messa
 import 'package:personal_offline/features/chat/presentation/screens/chat_screen.dart';
 import 'package:personal_offline/features/finance/data/repositories/expense_repository_impl.dart';
 import 'package:personal_offline/features/finance/domain/entities/expense_category.dart';
+import 'package:personal_offline/features/notes/data/repositories/note_repository_impl.dart';
 import 'package:personal_offline/features/reminder/data/repositories/reminder_repository_impl.dart';
 import 'package:personal_offline/features/shopping/data/repositories/shopping_repository_impl.dart';
 import 'package:personal_offline/features/todo/data/repositories/task_repository_impl.dart';
+import 'package:personal_offline/shared/intents/ai_intent_result.dart';
+import 'package:personal_offline/shared/intents/app_intent.dart';
 
 import '../../../helpers/fake_chat_repository.dart';
 import '../../../helpers/fake_expense_repository.dart';
+import '../../../helpers/fake_local_ai.dart';
+import '../../../helpers/fake_note_repository.dart';
 import '../../../helpers/fake_notification_scheduler.dart';
 import '../../../helpers/fake_reminder_repository.dart';
 import '../../../helpers/fake_shopping_repository.dart';
@@ -27,10 +35,22 @@ import '../../../helpers/fake_task_repository.dart';
 
 void main() {
   late FakeChatRepository repository;
+  late FakeLocalAiEngine engine;
+  late db.AppDatabase database;
 
   setUp(() {
     repository = FakeChatRepository();
+    engine = FakeLocalAiEngine();
+    database = db.AppDatabase(NativeDatabase.memory());
   });
+
+  tearDown(() => database.close());
+
+  /// Override dasar: database in-memory + engine AI fake (PHASE 11).
+  List<Override> baseOverrides() => [
+    appDatabaseProvider.overrideWithValue(database),
+    localAiRuntimeProvider.overrideWithValue(buildFakeRuntime(engine: engine)),
+  ];
 
   Future<void> pumpChat(
     WidgetTester tester, {
@@ -40,6 +60,7 @@ void main() {
       ProviderScope(
         overrides: [
           chatRepositoryProvider.overrideWithValue(repository),
+          ...baseOverrides(),
           ...overrides,
         ],
         child: const MaterialApp(home: ChatScreen()),
@@ -265,5 +286,165 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('tadi makan ayam 25 ribu'), findsOneWidget);
+  });
+
+  testWidgets('kalimat catatan membuat balasan asisten konfirmasi', (
+    tester,
+  ) async {
+    final noteRepository = FakeNoteRepository();
+    await pumpChat(
+      tester,
+      overrides: [
+        clockProvider.overrideWithValue(FixedClock(DateTime(2026, 10, 5, 9))),
+        noteRepositoryProvider.overrideWithValue(noteRepository),
+      ],
+    );
+
+    await typeAndSend(tester, 'catatan: nomor sparepart 12345');
+
+    expect(noteRepository.notes, hasLength(1));
+    expect(noteRepository.notes.single.content, 'Nomor sparepart 12345');
+    expect(
+      find.text('Catatan disimpan: Nomor sparepart 12345'),
+      findsOneWidget,
+    );
+    expect(find.text('catatan: nomor sparepart 12345'), findsOneWidget);
+  });
+
+  group('kartu konfirmasi AI (PHASE 11)', () {
+    const aiText = 'laporan kapal harus selesai minggu depan';
+
+    void engineYakin({double confidence = 0.9}) {
+      engine.ready = true;
+      engine.understandResult = AiIntentResult(
+        intent: AppIntent.createTodo,
+        confidence: confidence,
+        entities: const {'title': 'Kirim laporan', 'due_date': '2026-10-10'},
+      );
+    }
+
+    testWidgets('hasil AI memunculkan kartu konfirmasi sebelum menyimpan', (
+      tester,
+    ) async {
+      engineYakin();
+      final taskRepository = FakeTaskRepository();
+      await pumpChat(
+        tester,
+        overrides: [taskRepositoryProvider.overrideWithValue(taskRepository)],
+      );
+
+      await typeAndSend(tester, aiText);
+
+      expect(
+        find.textContaining('Konfirmasi: Tugas "Kirim laporan"'),
+        findsOneWidget,
+      );
+      expect(find.text('Simpan'), findsOneWidget);
+      expect(find.text('Batal'), findsOneWidget);
+      expect(find.text('Ubah'), findsNothing);
+      expect(taskRepository.tasks, isEmpty);
+
+      await tester.tap(find.text('Simpan'));
+      await tester.pumpAndSettle();
+
+      expect(taskRepository.tasks, hasLength(1));
+      expect(taskRepository.tasks.single.source, 'ai');
+      expect(
+        find.text('Todo dibuat: Kirim laporan · 10 Oktober 2026'),
+        findsOneWidget,
+      );
+      expect(find.text('Simpan'), findsNothing);
+    });
+
+    testWidgets('Batal membatalkan konfirmasi tanpa menyimpan data', (
+      tester,
+    ) async {
+      engineYakin();
+      final taskRepository = FakeTaskRepository();
+      await pumpChat(
+        tester,
+        overrides: [taskRepositoryProvider.overrideWithValue(taskRepository)],
+      );
+
+      await typeAndSend(tester, aiText);
+      expect(find.text('Simpan'), findsOneWidget);
+
+      await tester.tap(find.text('Batal'));
+      await tester.pumpAndSettle();
+
+      expect(taskRepository.tasks, isEmpty);
+      expect(find.text('Oke, tidak jadi disimpan.'), findsOneWidget);
+      expect(find.text('Simpan'), findsNothing);
+    });
+
+    testWidgets('confidence menengah menampilkan Ya/Ubah/Batal', (
+      tester,
+    ) async {
+      engineYakin(confidence: 0.6);
+      final taskRepository = FakeTaskRepository();
+      await pumpChat(
+        tester,
+        overrides: [taskRepositoryProvider.overrideWithValue(taskRepository)],
+      );
+
+      await typeAndSend(tester, aiText);
+
+      expect(find.text('Ya'), findsOneWidget);
+      expect(find.text('Ubah'), findsOneWidget);
+      expect(find.text('Batal'), findsOneWidget);
+      expect(taskRepository.tasks, isEmpty);
+
+      await tester.tap(find.text('Ubah'));
+      await tester.pumpAndSettle();
+
+      expect(taskRepository.tasks, isEmpty);
+      expect(find.text('Ubah'), findsNothing);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        aiText,
+      );
+    });
+
+    testWidgets('tanpa model AI, kalimat tak dikenal dibalas tanpa kartu', (
+      tester,
+    ) async {
+      await pumpChat(tester);
+
+      await typeAndSend(tester, 'qwerty asdf');
+
+      expect(find.textContaining('belum bisa memahami'), findsOneWidget);
+      expect(find.text('Simpan'), findsNothing);
+    });
+
+    testWidgets('perintah hapus menampilkan kartu Hapus, lalu menghapus', (
+      tester,
+    ) async {
+      final taskRepository = FakeTaskRepository();
+      await pumpChat(
+        tester,
+        overrides: [taskRepositoryProvider.overrideWithValue(taskRepository)],
+      );
+
+      await typeAndSend(tester, 'besok selesaikan laporan kapal');
+      expect(taskRepository.tasks, hasLength(1));
+
+      await typeAndSend(tester, 'hapus');
+
+      expect(taskRepository.tasks, hasLength(1), reason: 'belum dikonfirmasi');
+      expect(find.text('Hapus'), findsOneWidget);
+      expect(find.text('Batal'), findsOneWidget);
+      expect(find.text('Ubah'), findsNothing);
+      expect(find.text('Simpan'), findsNothing);
+
+      await tester.tap(find.text('Hapus'));
+      await tester.pumpAndSettle();
+
+      expect(taskRepository.tasks, isEmpty);
+      expect(
+        find.text('Todo dihapus: Selesaikan laporan kapal'),
+        findsOneWidget,
+      );
+      expect(find.text('Hapus'), findsNothing);
+    });
   });
 }

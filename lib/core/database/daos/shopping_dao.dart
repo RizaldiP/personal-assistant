@@ -34,6 +34,33 @@ class ShoppingDao extends DatabaseAccessor<AppDatabase>
             ]))
           .get();
 
+  Future<List<ShoppingItem>> getAllItems() => select(shoppingItems).get();
+
+  /// Pencarian judul daftar atau nama barang untuk global search
+  /// (PHASE 13).
+  Future<List<ShoppingList>> searchLists(String query, {int limit = 30}) async {
+    final like = '%${_escapeLike(query)}%';
+    final matchingListIds = {
+      for (final item in await (select(
+        shoppingItems,
+      )..where((i) => i.name.like(like, escapeChar: '\\'))).get())
+        item.listId,
+    };
+    final statement = select(shoppingLists)
+      ..where((l) {
+        final titleMatch = l.title.like(like, escapeChar: '\\');
+        return matchingListIds.isEmpty
+            ? titleMatch
+            : titleMatch | l.id.isIn(matchingListIds);
+      })
+      ..orderBy([
+        (l) => OrderingTerm.desc(l.date),
+        (l) => OrderingTerm.desc(l.id),
+      ])
+      ..limit(limit);
+    return statement.get();
+  }
+
   Future<int> insertList(ShoppingListsCompanion entry) =>
       into(shoppingLists).insert(entry);
 
@@ -78,4 +105,7 @@ class ShoppingDao extends DatabaseAccessor<AppDatabase>
     final maxValue = row.read(shoppingItems.sortOrder.max());
     return (maxValue ?? -1) + 1;
   }
+
+  static String _escapeLike(String value) =>
+      value.replaceAllMapped(RegExp(r'[%_\\]'), (match) => '\\${match[0]}');
 }
