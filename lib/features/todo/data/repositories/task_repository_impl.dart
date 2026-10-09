@@ -26,6 +26,10 @@ class TaskRepositoryImpl implements TaskRepository {
       _dao.watchPendingOn(date).map((rows) => rows.map(_toDomain).toList());
 
   @override
+  Stream<List<Task>> watchTasksForWidgetOn(String date) =>
+      _dao.watchAllOn(date).map((rows) => rows.map(_toDomain).toList());
+
+  @override
   Future<Task?> getById(int id) async => _mapOrNull(await _dao.getById(id));
 
   @override

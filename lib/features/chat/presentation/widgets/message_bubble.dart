@@ -63,8 +63,7 @@ class MessageBubble extends StatelessWidget {
                 Text(
                   time,
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: (isUser ? scheme.onPrimary : scheme.onSurfaceVariant)
-                        .withValues(alpha: 0.75),
+                    color: isUser ? scheme.onPrimary : scheme.onSurfaceVariant,
                   ),
                 ),
               ],

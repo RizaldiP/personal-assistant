@@ -15,6 +15,14 @@ final todayTasksProvider = StreamProvider<List<Task>>((ref) {
   return ref.watch(taskRepositoryProvider).watchTasksOn(_isoDate(now));
 });
 
+/// Semua tugas hari ini (pending + selesai) untuk widget layar utama.
+final todayTasksForWidgetProvider = StreamProvider<List<Task>>((ref) {
+  final now = ref.watch(clockProvider).now();
+  return ref
+      .watch(taskRepositoryProvider)
+      .watchTasksForWidgetOn(_isoDate(now));
+});
+
 class TodoController extends Notifier<void> {
   @override
   void build() {}

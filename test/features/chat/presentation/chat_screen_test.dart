@@ -11,21 +11,27 @@ import 'package:personal_offline/core/database/app_database.dart' as db;
 import 'package:personal_offline/core/database/database_provider.dart';
 import 'package:personal_offline/core/services/notification_scheduler.dart';
 import 'package:personal_offline/core/utils/clock.dart';
+import 'package:personal_offline/features/calendar/domain/calendar_event.dart';
+import 'package:personal_offline/features/calendar/presentation/screens/calendar_screen.dart';
 import 'package:personal_offline/features/chat/data/repositories/chat_repository_impl.dart';
 import 'package:personal_offline/features/chat/domain/entities/chat_message.dart';
 import 'package:personal_offline/features/chat/presentation/providers/chat_messages_provider.dart';
 import 'package:personal_offline/features/chat/presentation/screens/chat_screen.dart';
 import 'package:personal_offline/features/finance/data/repositories/expense_repository_impl.dart';
 import 'package:personal_offline/features/finance/domain/entities/expense_category.dart';
+import 'package:personal_offline/features/journal/data/repositories/journal_repository_impl.dart';
 import 'package:personal_offline/features/notes/data/repositories/note_repository_impl.dart';
+import 'package:personal_offline/features/notes/presentation/screens/notes_screen.dart';
 import 'package:personal_offline/features/reminder/data/repositories/reminder_repository_impl.dart';
 import 'package:personal_offline/features/shopping/data/repositories/shopping_repository_impl.dart';
 import 'package:personal_offline/features/todo/data/repositories/task_repository_impl.dart';
+import 'package:personal_offline/features/todo/presentation/screens/todo_screen.dart';
 import 'package:personal_offline/shared/intents/ai_intent_result.dart';
 import 'package:personal_offline/shared/intents/app_intent.dart';
 
 import '../../../helpers/fake_chat_repository.dart';
 import '../../../helpers/fake_expense_repository.dart';
+import '../../../helpers/fake_journal_repository.dart';
 import '../../../helpers/fake_local_ai.dart';
 import '../../../helpers/fake_note_repository.dart';
 import '../../../helpers/fake_notification_scheduler.dart';
@@ -89,6 +95,74 @@ void main() {
     expect(find.text('Ketik di sini...'), findsOneWidget);
     expect(sendButton(), findsOneWidget);
   });
+
+  testWidgets('quick action selalu menampilkan tiga chip daftar', (
+    tester,
+  ) async {
+    await pumpChat(tester);
+
+    expect(find.byType(ActionChip), findsNWidgets(3));
+    expect(find.text('Daftar Tugas'), findsOneWidget);
+    expect(find.text('Daftar Catatan'), findsOneWidget);
+    expect(find.text('Daftar Reminder'), findsOneWidget);
+  });
+
+  testWidgets('quick action "Daftar Tugas" membuka TodoScreen', (tester) async {
+    await pumpChat(
+      tester,
+      overrides: [
+        taskRepositoryProvider.overrideWithValue(FakeTaskRepository()),
+      ],
+    );
+
+    await tester.tap(find.text('Daftar Tugas'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(find.byType(TodoScreen), findsOneWidget);
+  });
+
+  testWidgets('quick action "Daftar Catatan" membuka NotesScreen', (
+    tester,
+  ) async {
+    await pumpChat(
+      tester,
+      overrides: [
+        noteRepositoryProvider.overrideWithValue(FakeNoteRepository()),
+      ],
+    );
+
+    await tester.tap(find.text('Daftar Catatan'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+
+    expect(find.byType(NotesScreen), findsOneWidget);
+  });
+
+  testWidgets(
+    'quick action "Daftar Reminder" membuka kalender dengan filter reminder',
+    (tester) async {
+      await pumpChat(
+        tester,
+        overrides: [
+          taskRepositoryProvider.overrideWithValue(FakeTaskRepository()),
+          reminderRepositoryProvider.overrideWithValue(
+            FakeReminderRepository(),
+          ),
+          journalRepositoryProvider.overrideWithValue(FakeJournalRepository()),
+        ],
+      );
+
+      await tester.tap(find.text('Daftar Reminder'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+
+      final calendar = tester.widget<CalendarScreen>(
+        find.byType(CalendarScreen),
+      );
+      expect(calendar.initialFilter, CalendarEventTypes.reminder);
+    },
+  );
 
   testWidgets('user bisa mengetik dan mengirim pesan', (tester) async {
     await pumpChat(tester);

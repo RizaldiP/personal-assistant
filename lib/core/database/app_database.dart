@@ -196,6 +196,9 @@ class AppDatabase extends _$AppDatabase {
       name: 'personal_offline',
       native: const DriftNativeOptions(
         databaseDirectory: getApplicationSupportDirectory,
+        // Isolate background widget (home_widget) membuka database yang sama
+        // untuk menandai tugas selesai, jadi koneksi harus dibagi antar isolate.
+        shareAcrossIsolates: true,
       ),
     );
   }

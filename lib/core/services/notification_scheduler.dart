@@ -87,22 +87,56 @@ class FlutterLocalNotificationsScheduler implements NotificationScheduler {
     required DateTime at,
   }) async {
     if (!at.isAfter(DateTime.now())) return;
-    await _plugin.zonedSchedule(
-      id: id,
-      title: title,
-      body: body,
-      scheduledDate: tz.TZDateTime.from(at, tz.local),
-      notificationDetails: const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'reminders',
-          'Reminder',
-          channelDescription: 'Notifikasi pengingat pribadi',
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
+
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+
+    // Android 14+ tidak memberikan SCHEDULE_EXACT_ALARM secara otomatis.
+    // Bila belum diizinkan, jadwalkan "inexact" agar notifikasi tetap tampil
+    // (hanya mungkin tidak presisi ke detik), alih-alih gagal sama sekali.
+    var mode = AndroidScheduleMode.inexactAllowWhileIdle;
+    try {
+      if (await android?.canScheduleExactNotifications() ?? false) {
+        mode = AndroidScheduleMode.exactAllowWhileIdle;
+      }
+    } on Object {
+      // Gagal mengecek izin → pakai jalur aman (inexact).
+    }
+
+    final scheduledDate = tz.TZDateTime.from(at, tz.local);
+    const notificationDetails = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'reminders',
+        'Reminder',
+        channelDescription: 'Notifikasi pengingat pribadi',
+        importance: Importance.high,
+        priority: Priority.high,
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
+
+    try {
+      await _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduledDate,
+        notificationDetails: notificationDetails,
+        androidScheduleMode: mode,
+      );
+    } on Object {
+      // Exact ditolak saat eksekusi → ulangi dengan mode inexact.
+      if (mode == AndroidScheduleMode.inexactAllowWhileIdle) rethrow;
+      await _plugin.zonedSchedule(
+        id: id,
+        title: title,
+        body: body,
+        scheduledDate: scheduledDate,
+        notificationDetails: notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+    }
   }
 
   @override

@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../domain/entities/chat_message.dart';
 import '../providers/chat_messages_provider.dart';
 import '../widgets/chat_input.dart';
+import '../widgets/chat_quick_actions.dart';
 import '../widgets/confirmation_bar.dart';
 import '../widgets/message_bubble.dart';
 
@@ -25,7 +27,9 @@ class ChatScreen extends ConsumerWidget {
             Expanded(
               child: messages.when(
                 loading: () => const _LoadingState(),
-                error: (error, stackTrace) => _ErrorState(
+                error: (error, stackTrace) => ErrorState(
+                  title: 'Riwayat gagal dimuat',
+                  message: 'Terjadi kesalahan pada penyimpanan lokal.',
                   onRetry: () => ref.invalidate(chatMessagesProvider),
                 ),
                 data: (items) => items.isEmpty
@@ -40,6 +44,7 @@ class ChatScreen extends ConsumerWidget {
               ),
             ),
             const ConfirmationBar(),
+            const ChatQuickActions(),
             const ChatInput(),
           ],
         ),
@@ -54,52 +59,6 @@ class _LoadingState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Center(child: CircularProgressIndicator());
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xl),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.error_outline, size: 56, color: scheme.error),
-            const SizedBox(height: AppSpacing.lg),
-            Text(
-              'Riwayat gagal dimuat',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Terjadi kesalahan pada penyimpanan lokal.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: scheme.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            FilledButton.tonal(
-              onPressed: onRetry,
-              child: const Text('Coba lagi'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

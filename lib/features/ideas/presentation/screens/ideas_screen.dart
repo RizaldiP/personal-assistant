@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../../../shared/widgets/tag_chips.dart';
 import '../../domain/entities/idea.dart';
 import '../providers/idea_controller.dart';
@@ -53,7 +54,10 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
         ],
         bottom: _searching
             ? PreferredSize(
-                preferredSize: const Size.fromHeight(72),
+                preferredSize: Size.fromHeight(
+                  72 *
+                      MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.5),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.lg,
@@ -81,8 +85,10 @@ class _IdeasScreenState extends ConsumerState<IdeasScreen> {
       body: SafeArea(
         child: ideasAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) =>
-              _ErrorState(onRetry: () => ref.invalidate(ideasProvider(_query))),
+          error: (error, stackTrace) => ErrorState(
+            title: 'Ide gagal dimuat',
+            onRetry: () => ref.invalidate(ideasProvider(_query)),
+          ),
           data: (ideas) => ideas.isEmpty
               ? EmptyState(
                   icon: Icons.lightbulb_outline,
@@ -219,31 +225,6 @@ class _SectionLabel extends StatelessWidget {
         style: AppTypography.sectionLabel(
           theme.textTheme,
         )?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 56),
-          const SizedBox(height: AppSpacing.lg),
-          const Text('Ide gagal dimuat'),
-          const SizedBox(height: AppSpacing.lg),
-          FilledButton.tonal(
-            onPressed: onRetry,
-            child: const Text('Coba lagi'),
-          ),
-        ],
       ),
     );
   }

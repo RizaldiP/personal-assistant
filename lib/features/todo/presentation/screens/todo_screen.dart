@@ -5,6 +5,7 @@ import '../../../../core/database/database_provider.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../domain/entities/task.dart';
 import '../providers/task_controller.dart';
 import '../widgets/task_tile.dart';
@@ -28,8 +29,10 @@ class TodoScreen extends ConsumerWidget {
       body: SafeArea(
         child: tasksAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) =>
-              _ErrorState(onRetry: () => ref.invalidate(todoListProvider)),
+          error: (error, stackTrace) => ErrorState(
+            title: 'Tugas gagal dimuat',
+            onRetry: () => ref.invalidate(todoListProvider),
+          ),
           data: (tasks) => tasks.isEmpty
               ? const EmptyState(
                   icon: Icons.checklist,
@@ -189,31 +192,6 @@ class _InlineEmpty extends StatelessWidget {
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 56),
-          const SizedBox(height: AppSpacing.lg),
-          const Text('Tugas gagal dimuat'),
-          const SizedBox(height: AppSpacing.lg),
-          FilledButton.tonal(
-            onPressed: onRetry,
-            child: const Text('Coba lagi'),
-          ),
-        ],
       ),
     );
   }

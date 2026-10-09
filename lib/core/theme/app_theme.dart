@@ -18,6 +18,12 @@ abstract final class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: scheme.surface,
+      pageTransitionsTheme: PageTransitionsTheme(
+        builders: {
+          for (final platform in TargetPlatform.values)
+            platform: const FadeForwardsPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
@@ -51,14 +57,19 @@ abstract final class AppTheme {
         backgroundColor: scheme.surfaceContainer,
         indicatorColor: scheme.primaryContainer,
         elevation: 0,
-        height: 68,
+        height: 80,
         labelTextStyle: WidgetStateProperty.resolveWith(
           (states) => TextStyle(
-            fontSize: 12,
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w600
                 : FontWeight.w500,
           ),
+        ),
+      ),
+      chipTheme: ChipThemeData(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: 14,
         ),
       ),
       listTileTheme: ListTileThemeData(

@@ -157,4 +157,30 @@ void main() {
       expect(_button('Unduh model'), findsOneWidget);
     });
   });
+
+  group('SettingsScreen — cadangan & data', () {
+    testWidgets('menampilkan bagian Cadangan & Data', (tester) async {
+      await _pumpSettings(tester, runtime: buildFakeRuntime());
+
+      expect(find.text('AI LOKAL'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('CADANGAN & DATA'),
+        200,
+        scrollable: find.byType(Scrollable),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('CADANGAN & DATA'), findsOneWidget);
+      expect(
+        find.textContaining('Ekspor database ke JSON/ZIP'),
+        findsOneWidget,
+      );
+      expect(find.text('Cadangan & Data'), findsOneWidget);
+      expect(find.text('Ekspor JSON'), findsOneWidget);
+      expect(find.text('Ekspor ZIP'), findsOneWidget);
+      expect(find.text('Pulihkan'), findsOneWidget);
+      expect(find.text('Laporan PDF (bulan ini)'), findsOneWidget);
+    });
+  });
 }

@@ -26,6 +26,19 @@ class TaskDao extends DatabaseAccessor<AppDatabase> with _$TaskDaoMixin {
             ]))
           .watch();
 
+  /// Semua tugas (pending + selesai) pada [date], pending lebih dulu.
+  ///
+  /// Dipakai widget layar utama.
+  Stream<List<Task>> watchAllOn(String date) =>
+      (select(tasks)
+            ..where((t) => t.dueDate.equals(date))
+            ..orderBy([
+              (t) => OrderingTerm.desc(t.status),
+              (t) => OrderingTerm.asc(t.dueTime),
+              (t) => OrderingTerm.asc(t.id),
+            ]))
+          .watch();
+
   Future<Task?> getById(int id) =>
       (select(tasks)..where((t) => t.id.equals(id))).getSingleOrNull();
 

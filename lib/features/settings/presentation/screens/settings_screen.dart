@@ -6,6 +6,8 @@ import '../../../../core/settings/theme_controller.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../widgets/ai_model_card.dart';
+import '../widgets/backup_section.dart';
+import '../widgets/home_widget_card.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -117,6 +119,24 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           const AiModelCard(),
+          const SizedBox(height: AppSpacing.xl),
+          Text(
+            'CADANGAN & DATA',
+            style: AppTypography.sectionLabel(
+              theme.textTheme,
+            )?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const BackupSection(),
+          const SizedBox(height: AppSpacing.xl),
+          Text(
+            'WIDGET',
+            style: AppTypography.sectionLabel(
+              theme.textTheme,
+            )?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const HomeWidgetCard(),
           const SizedBox(height: AppSpacing.xl),
           Text(
             'TENTANG',

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/formatters/date_formats.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../../../shared/widgets/tag_chips.dart';
 import '../../domain/entities/journal_entry.dart';
 import '../providers/journal_controller.dart';
@@ -52,7 +53,10 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
         ],
         bottom: _searching
             ? PreferredSize(
-                preferredSize: const Size.fromHeight(72),
+                preferredSize: Size.fromHeight(
+                  72 *
+                      MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.5),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.lg,
@@ -82,7 +86,8 @@ class _JournalScreenState extends ConsumerState<JournalScreen> {
       body: SafeArea(
         child: entriesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) => _ErrorState(
+          error: (error, stackTrace) => ErrorState(
+            title: 'Jurnal gagal dimuat',
             onRetry: () => ref.invalidate(journalEntriesProvider(_query)),
           ),
           data: (entries) => entries.isEmpty
@@ -173,31 +178,6 @@ class _JournalTile extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 56),
-          const SizedBox(height: AppSpacing.lg),
-          const Text('Jurnal gagal dimuat'),
-          const SizedBox(height: AppSpacing.lg),
-          FilledButton.tonal(
-            onPressed: onRetry,
-            child: const Text('Coba lagi'),
-          ),
-        ],
       ),
     );
   }

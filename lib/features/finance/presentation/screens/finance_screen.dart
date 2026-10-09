@@ -7,6 +7,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/formatters/currency_formats.dart';
 import '../../../../shared/formatters/date_formats.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../domain/entities/expense.dart';
 import '../../domain/entities/expense_category.dart';
 import '../providers/finance_controller.dart';
@@ -29,8 +30,10 @@ class FinanceScreen extends ConsumerWidget {
       body: SafeArea(
         child: expensesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) =>
-              _ErrorState(onRetry: () => ref.invalidate(expensesProvider)),
+          error: (error, stackTrace) => ErrorState(
+            title: 'Keuangan gagal dimuat',
+            onRetry: () => ref.invalidate(expensesProvider),
+          ),
           data: (expenses) => Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -94,7 +97,7 @@ class FinanceScreen extends ConsumerWidget {
                   items: ExpenseCategory.values.map((value) {
                     return DropdownMenuItem(
                       value: value,
-                      child: Text(_categoryLabel(value)),
+                      child: Text(value.label),
                     );
                   }).toList(),
                   onChanged: (value) {
@@ -428,7 +431,7 @@ class _ExpenseRow extends ConsumerWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(_categoryLabel(expense.category)),
+        subtitle: Text(expense.category.label),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -484,41 +487,6 @@ class _SectionLabel extends StatelessWidget {
     );
   }
 }
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 56),
-          const SizedBox(height: AppSpacing.lg),
-          const Text('Keuangan gagal dimuat'),
-          const SizedBox(height: AppSpacing.lg),
-          FilledButton.tonal(
-            onPressed: onRetry,
-            child: const Text('Coba lagi'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _categoryLabel(ExpenseCategory category) => switch (category) {
-  ExpenseCategory.makanan => 'Makanan',
-  ExpenseCategory.transport => 'Transport',
-  ExpenseCategory.tagihan => 'Tagihan',
-  ExpenseCategory.belanja => 'Belanja',
-  ExpenseCategory.kesehatan => 'Kesehatan',
-  ExpenseCategory.hiburan => 'Hiburan',
-  ExpenseCategory.lainnya => 'Lainnya',
-};
 
 IconData _categoryIcon(ExpenseCategory category) => switch (category) {
   ExpenseCategory.makanan => Icons.restaurant_outlined,

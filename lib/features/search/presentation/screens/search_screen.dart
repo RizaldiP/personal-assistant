@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../../../shared/widgets/tag_chips.dart';
 import '../../../finance/presentation/screens/finance_screen.dart';
 import '../../../ideas/presentation/screens/ideas_screen.dart';
@@ -100,10 +101,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       .when(
                         loading: () =>
                             const Center(child: CircularProgressIndicator()),
-                        error: (error, stackTrace) => const EmptyState(
-                          icon: Icons.error_outline,
+                        error: (error, stackTrace) => ErrorState(
                           title: 'Gagal mencari',
                           message: 'Coba lagi sebentar lagi.',
+                          onRetry: () =>
+                              ref.invalidate(searchResultsProvider(query)),
                         ),
                         data: (results) => results.isEmpty
                             ? const EmptyState(

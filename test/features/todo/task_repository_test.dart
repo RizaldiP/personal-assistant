@@ -91,4 +91,26 @@ void main() {
       expect(rows.single.title, 'Sore');
     },
   );
+
+  test('watchTasksForWidgetOn mengembalikan pending lalu selesai hari itu', () async {
+    await repository.create(
+      const Task(
+        id: null,
+        title: 'Selesai pagi',
+        dueDate: '2026-10-05',
+        dueTime: '07:00',
+        status: TaskStatus.done,
+      ),
+    );
+    await repository.create(
+      const Task(title: 'Pending siang', dueDate: '2026-10-05', dueTime: '12:00'),
+    );
+    await repository.create(
+      const Task(title: 'Besok', dueDate: '2026-10-06'),
+    );
+
+    final rows = await repository.watchTasksForWidgetOn('2026-10-05').first;
+
+    expect(rows.map((task) => task.title), ['Pending siang', 'Selesai pagi']);
+  });
 }

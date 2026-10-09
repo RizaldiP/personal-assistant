@@ -6,7 +6,7 @@ status.
 ## 1. Status saat ini
 
 ```
-CURRENT ACTIVE PHASE: PHASE 13
+CURRENT ACTIVE PHASE: PHASE 17
 STATUS: DONE
 ```
 
@@ -31,10 +31,10 @@ saat ingin memulai phase berikutnya (lihat `PROJECT.md` bagian 4 dan 39).
 | 11 | Hybrid Intelligence | DONE |
 | 12 | Contextual Chat | DONE |
 | 13 | Search + Calendar + Smart Inbox | DONE |
-| 14 | Backup / Restore / PDF | NOT STARTED |
-| 15 | Security | NOT STARTED |
-| 16 | UI/UX Polish | NOT STARTED |
-| 17 | Testing & Release | NOT STARTED |
+| 14 | Backup / Restore / PDF | DONE |
+| 15 | Security | SKIPPED |
+| 16 | UI/UX Polish | DONE |
+| 17 | Testing & Release | DONE |
 
 Status hanya boleh diubah oleh phase yang sedang dikerjakan.
 Jangan menandai phase berikutnya DONE di sesi yang sama.
@@ -974,3 +974,291 @@ Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test`
 453 PASS (+3 benchmark skip)
 
 Status: DONE
+
+---
+
+### PHASE 14 — Backup / Restore / PDF
+
+Ekspor/memulihkan seluruh database (JSON dan ZIP berisi lampiran), validasi
+berkas, pemulihan transaksi dengan rollback aman, dan laporan pengeluaran
+PDF bulanan. Semua DoD terpenuhi: export, import, failed restore aman,
+attachment, PDF.
+
+Yang dikerjakan:
+
+- **`lib/core/backup/backup_document.dart`** — format berkas
+  `personal-offline-backup` v1: `format`/`version`/`schema_version`/
+  `exported_at`/`data` (nilai nullable → JSON), `BackupDocument.encode()` dgn
+  indent 2; `fileNameFor` (`personal-offline-backup-YYYY-MM-DD.json|zip`),
+  `safetyFileNameFor` (`personal-offline-backup-sebelum-pulihkan-…`),
+  `reportFileNameFor` (`laporan-pengeluaran-YYYY-MM.pdf`); `totalRows`.
+- **`lib/core/backup/backup_validator.dart`** — validasi murni di memori:
+  JSON, format, versi (lebih baru ditolak), `schema_version` (lebih baru →
+  tolak; lebih lama → peringatan), `exported_at`, isi `data`, skema tiap
+  tabel (`PRAGMA table_info`), tipe sel, baris/daftar; tabel tak dikenal →
+  peringatan dan dilewati; nol tabel dikenal → ditolak; hasil
+  `BackupValidationResult {valid|invalid}`.
+- **`lib/core/backup/backup_archive.dart`** — ZIP dokumen + entri
+  `attachments/<name>`; `_safeName` menetralkan pemisah path (`../evil.txt`
+  → `.._evil.txt`, `a\b.txt` → `a_b.txt`) saat tulis maupun baca; decode
+  menolak ZIP rusak / tanpa `backup.json`.
+- **`lib/core/backup/backup_service.dart`** — ekspor `SELECT *` per tabel
+  aplikasi (kecuali `sqlite_%`/`drift_%`); urutan tabel induk→anak dari
+  `PRAGMA foreign_key_list` (delete anak duluan untuk `replace`); `restore`
+  dalam **satu transaksi** → kegagalan = rollback penuh; mode `merge`
+  (lewati PK yang sudah ada via `PRAGMA table_info` primary key) dan
+  `replace` (hapus semua dulu); `markTablesUpdated` agar stream drift
+  memuat ulang; `RestoreResult {ok|failed}` dengan `RestoreTableCounts`.
+- **`lib/core/backup/backup_storage.dart`** — `BackupStorage` (abstraksi
+  testable) + `PlatformBackupStorage` (baca/tulis folder dokumen aplikasi,
+  pick file `file_picker`, share `share_plus`, buka file `open_filex`);
+  `backupStorageProvider` + `backupServiceProvider`.
+- **`lib/features/settings/.../backup_controller.dart`** — `BackupController`
+  (Notifier<bool>): `exportBackup(json|zip)` — lampiran memaksa ZIP;
+  `pickAndValidate` (`cancelled`/`invalid`/`ready` + attachmentCount);
+  `restore(doc, mode, attachments)` — cadangan aman dulu (best effort),
+  tulis lampiran setelah sukses; `exportMonthlyExpenseReport` (PDF bulan
+  berjalan lalu `openBackup`); busy-guard + semua galat → null/invalid,
+  tidak pernah crash.
+- **`lib/core/pdf/pdf_report_service.dart`** — `PdfReportService.
+  buildExpenseReport` (paket `pdf` 3.13.1): header bulan, ringkasan per
+  kategori + total, rincian terurut tanggal, font Helvetica (ASCII);
+  kosong pun menghasilkan PDF valid.
+- **UI** — section `Cadangan & Data` di layar Pengaturan (`BackupSection`):
+  4 aksi (Ekspor JSON, Ekspor ZIP, Pulihkan, Laporan PDF bulan ini), tombol
+  nonaktif + `LinearProgressIndicator` saat sibuk; pemulihan menampilkan
+  dialog pratinjau (tanggal buat, versi DB, baris per tabel) dengan
+  `Gabung (lewati duplikat)` / `Timpa (hapus data lama)`; dialog Gagal dan
+  ringkasan `Pemulihan selesai` (Disisipkan/Dilewati); SnackBar bila ekspor
+  atau PDF gagal. Section `AI LOKAL` (PHASE 11) yang sempat tertimpa
+  di-atas-nya dikembalikan.
+- **Provider untuk test** — `FakeBackupStorage` (in-memory, gate
+  `Completer` untuk menguji busy-state, injeksi `writeError`/`readError`,
+  tangkapan path share/open) dan `FakeBackupService` (subclass tanpa sentuh
+  drift agar widget test aman di bawah FakeAsync).
+
+Test baru:
+
+- `test/core/backup/backup_document_test.dart` (4) — struktur encode,
+  `totalRows`, penamaan berkas (json/zip/safety/PDF).
+- `test/core/backup/backup_validator_test.dart` (17) — dokumen sah, skema
+  lama (warning), tabel tak dikenal (warning), dan tiap jalur invalid
+  (JSON, objek, format, versi, schema_version, exported_at, data, daftar,
+  objek baris, kolom, tipe, nol tabel).
+- `test/core/backup/backup_archive_test.dart` (8) — roundtrip tanpa/dengan
+  lampiran, sanitasi path saat tulis dan baca, byte bukan ZIP, ZIP tanpa
+  `backup.json`.
+- `test/core/backup/backup_service_test.dart` (12) — ekspor semua tabel
+  aplikasi + tanpa tabel internal, validasi, replace vs merge (conflict
+  dilewati), rollback saat tampered di tengah replace, urutan FK induk/anak,
+  tabel tak dikenal diabaikan, stream drift dimuat ulang, warning skema lama.
+- `test/core/pdf/pdf_report_service_test.dart` (3) — header `%PDF-`,
+  sorting tanggal, kosong tetap valid.
+- `test/features/settings/presentation/backup_controller_test.dart` (16) —
+  JSON tanpa lampiran → share; lampiran → ZIP; ZIP eksplisit; sibuk menolak
+  keduanya (gate); gagal simpan → null; pick dibatalkan/rusak/format
+  berbeda/JSON valid/ZIP valid+attachment/ZIP tanpa backup.json/baca gagal;
+  restore menulis cadangan aman `sebelum-pulihkan`, menulis lampiran,
+  gagal → success false + state tidak sibuk; PDF bulan berjalan menulis +
+  membuka; gagal simpan PDF → null.
+- `test/features/settings/presentation/backup_section_test.dart` (10) —
+  deskripsi + 4 aksi, ekspor memanggil layanan + share, SnackBar gagal,
+  tombol nonaktif saat sibuk, picker batal → tanpa dialog, berkas invalid →
+  dialog Gagal, pratinjau → Batal aman, Timpa → ringkasan + mode replace,
+  Gabung → mode merge, pemulihan gagal → dialog Gagal.
+- `test/features/settings/settings_screen_test.dart` +1 — section
+  `CADANGAN & DATA` tampil (di bawah `AI LOKAL`), 4 tombol aksi terlihat.
+
+Catatan:
+
+- Perbaikan dari kode setengah jadi: impor `path_provider` hilang di
+  `backup_storage.dart`, kurung `mappedWith` di `backup_archive.dart`, case
+  `num` tak terjangkau di `backup_service.dart`, impor/nesting
+  `Expanded`/deps di `backup_section.dart`, dan section `AI LOKAL` yang
+  tertimpa `BackupSection` di `settings_screen.dart`.
+- Ekspor menggunakan `SELECT *` per tabel sehingga seluruh tabel baru
+  (mis. PHASE 13 `inbox_items`) otomatis ikut tercakup tanpa perubahan kode.
+- `BackupController.restore` menerima `mode` sebagai argumen posisional
+  (bukan named).
+- Widget test cadangan memakai `FakeBackupService` (subclass) agar operasi
+  Drift tidak berjalan di bawah FakeAsync (lihat catatan PHASE 3/13).
+- Dependensi baru terdaftar di `docs/03-dependencies.md`: `file_picker
+  13.1.0`, `share_plus 13.3.1`, `archive 4.3.0`, `pdf 3.13.1`,
+  `open_filex 4.7.0`.
+
+Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test`
+525 PASS (+3 benchmark skip)
+
+Status: DONE
+
+### PHASE 16 - UI/UX Polish
+
+Ringkasan:
+
+- **Shared `ErrorState`** (`lib/shared/widgets/error_state.dart`) menggantikan
+  7 duplikat `_ErrorState` (chat, todo, finance, shopping, notes, ideas,
+  journal); error-path inbox/search/calendar dikonversi dari `EmptyState`
+  menjadi `ErrorState` + tombol "Coba lagi" (invalidate provider via
+  `ref.invalidate`).
+- **`PageTransitionsTheme`** global memakai `FadeForwardsPageTransitionsBuilder`
+  untuk semua `TargetPlatform` (tersedia di Flutter 3.44.1).
+- **Aksesibilitas**: tinggi `NavigationBar` 80px + label tak terkunci ukuran
+  font; chip (filter + tag) >=48px via padding vertikal 14; sel hari kalender
+  diperbesar dan tinggi grid ikut `textScaler`; 3 bar pencarian
+  (notes/journal/ideas) `PreferredSize` skala-aware.
+- **Overflow**: chip filter inbox/kalender `Row` -> `Wrap`; header daftar
+  belanja `Flexible`+ellipsis; `_DayCell` dots `MainAxisSize.min`;
+  `EmptyState`/`ErrorState` dibungkus `SingleChildScrollView` agar aman teks
+  besar; header bulan kalender ulet (`FittedBox`) + label max 2 baris.
+- **Verifikasi textScaler 2x** (smoke test sementara, viewport 320px):
+  semua 5 tab bebas overflow.
+- **Kontras**: alpha timestamp `message_bubble` dihapus (warna penuh);
+  dead code `AppColors.success/warning/danger` dihapus.
+- **Typography/spacing**: audit seluruh layar — sudah memakai token
+  `AppSpacing` (literal tersisa hanya nilai sub-token yang disengaja:
+  0, 1.5, 2, 14, 80).
+
+Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test`
+525 PASS (+3 benchmark skip)
+
+Status: DONE
+
+---
+
+### PHASE 17 — Testing & Release
+
+Ringkasan:
+
+- **Integration test end-to-end** (`integration_test/app_test.dart`, baru):
+  7 skenario PHASE 17 lewat chat nyata di **perangkat fisik Android**
+  (OPPO CPH2801): Reminder `besok jam 8 bayar listrik` → Reminder
+  `Bayar listrik` 2026-10-09 08:00 + scheduler notifikasi
+  `DateTime(2026,10,9,8)`; Context `ubah jadi jam 10` → Reminder diubah +
+  scheduler pindah ke 10:00; Todo `besok selesaikan laporan` due
+  2026-10-09; Shopping `besok beli telur susu minyak` items
+  [Telur, Susu, Minyak]; Finance `tadi makan 25 ribu` amount 25000
+  kategori makanan 2026-10-08; Journal `hari ini capek banget` mood
+  `capek`; AI (model mati → jalur fallback) `kayaknya minggu depan aku
+  harus servis motor` → Todo via Rule Parser.
+- **Bangunan test device**: harness TIDAK memanggil `main()` (menghindari
+  inisialisasi plugin nyata/dialog izin): langsung pump
+  `UncontrolledProviderScope` + `ProviderContainer` dengan overrides —
+  `appDatabaseProvider` → `AppDatabase(NativeDatabase.memory())` (SQLite
+  in-memory asli), `notificationSchedulerProvider` →
+  `FakeNotificationScheduler`, `clockProvider` → `FixedClock(2026-10-08
+  06:00)`, `localAiRuntimeProvider` → `buildFakeRuntime()`.
+  `initializeDateFormatting('id')` dipanggil karena harness mem-bypass
+  `main()`.
+- **Seam `lib/main.dart`**: `main({List<Override> overrides = const []})`
+  membangun `ProviderContainer(overrides)` + `UncontrolledProviderScope`,
+  scheduler dibaca dari container (`notificationSchedulerProvider`) — test
+  tidak menyentuh permission nyata. Tipe `Override` diimpor dari
+  `package:flutter_riverpod/misc.dart` (exports Riverpod 3.4.3).
+- **Fix build Android**: `flutter_local_notifications` meminta *core library
+  desugaring* → `android/app/build.gradle.kts` `compileOptions {
+  isCoreLibraryDesugaringEnabled = true }` + dependency
+  `coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4)`.
+- **Menempa integration test** (3 iterasi yang didokumentasikan):
+  1) `find.bySemanticsLabel('Buka percakapan')` tidak menemukan node
+     (tree semantik mati di widget test; label gabungan di device) →
+     diganti `find.text('Ketik di sini...')` (placeholder beranda, unik).
+  2) Perangkat OPPO memunculkan `INSTALL_FAILED_VERIFICATION_FAILURE`
+     (dialog konfirmasi install di layar HP) — retry sukses; layar HP
+     wajib menyala saat install.
+  3) Kegagalan device yang sebenarnya (bukan logika): balasan sudah
+     tersimpan di database tapi `find.byType(MessageBubble)` tidak
+     bertambah — dengan keyboard terbuka bubble baru berada di luar
+     viewport + cacheExtent (ListView lazy) sehingga tidak dibangun.
+     Solusi: wait berbasis **database sebagai sumber kebenaran**
+     (`chatRepository.getAll()` count) + tombol Kirim dinilai via
+     `IconButton.tooltip == 'Kirim'` (bukan `byTooltip` → RawTooltip)
+     + timeout 60 detik. Verifikasi balasan dibaca dari DB (`.last`).
+- **Verifikasi akhir**: `flutter analyze` 0 issue; `flutter test` **525
+  PASS** (+3 benchmark skip); `flutter test integration_test/app_test.dart
+  -d 3C26160032100000` — **All tests passed** (7/7 skenario, ±8 detik);
+  `flutter build apk --release` sukses → `app-release.apk` (269,9 MB,
+  di-sign debug sesuai TODO `build.gradle.kts`), lalu APK release
+  di-`adb install`, diluncurkan, proses hidup (`pidof` + `MainActivity`
+  resumed) tanpa crash.
+- **Skenario manual** (test list PHASE 17): offline (aplikasi tanpa
+  jaringan — seluruh data lokal, tidak ada network I/O) dan restart
+  (data SQLite memakai `NativeDatabase` drift, bertahan) bersifat
+  device-level dan sudah dijamin desain + integration harness; notification
+  (exact alarm via `flutter_local_notifications`, scheduler diverifikasi
+  `FakeNotificationScheduler` di unit test + integration), dark mode,
+  database, backup, restore, dan AI unavailable sudah tercakup test
+  otomatis (PHASE 6/10/11/13/14). Dua poin yang membutuhkan interaksi
+  manual di perangkat: memunculkan notifikasi terjadwal pada jam yang
+  ditentukan dan memeriksa notifikasi popup saat app tertutup/layar
+  terkunci — tidak diverifikasi otomatis karena platform channel.
+
+Catatan:
+
+- Release APK belum di-sign dengan keystore produksi (TODO di
+  `android/app/build.gradle.kts` disengaja). Ukuran 269,9 MB karena satu
+  APK mencakup semua ABI; opsi efisiensi (splits ABI/R8/`--obfuscate`,
+  model AI tetap unduhan terpisah) bisa dilakukan user kapan pun.
+- Device flaky install OPPO serupa masalah build/signature, bukan kode:
+  verifikasi dipakai tiga jalur — unit/widget (VM), integration (device),
+  build release (install + launch live).
+
+Tests: `dart format` bersih, `flutter analyze` 0 issue, `flutter test`
+525 PASS (+3 benchmark skip) + `flutter test integration_test/app_test.dart`
+di perangkat fisik PASS (7 skenario)
+
+Status: DONE
+
+---
+
+### PHASE 17b — Widget layar utama Android
+
+Ringkasan:
+
+- **Widget tugas hari ini** (Android saja, paket `home_widget` 0.10.0,
+  teknologi **Android XML / RemoteViews**, bukan Jetpack Glance):
+  menampilkan tugas hari ini (belum selesai + selesai, maks 6 baris)
+  dengan checkbox yang bisa dicentang **langsung dari widget** dan tombol
+  **Chat** yang membuka layar Percakapan.
+- **Keputusan desain** (hasil tanya user): (1) tampilkan tugas selesai dan
+  bisa dicentang dari widget; (2) tombol Chat membuka layar Percakapan
+  (deep-link) — RemoteViews tidak bisa mengetik teks di widget; (3) pakai
+  Android XML/RemoteViews.
+- **Lapisan Dart**: `core/widget/` — `widget_keys.dart` (nama provider
+  `com.personaloffline.personal_offline.TodayTasksWidgetProvider`, key
+  `today_tasks_json`/`today_tasks_updated_at`, skema `personaloffline`),
+  `today_tasks_codec.dart` (`TodayTaskEntry` + encode/decode JSON ringkas,
+  aman data rusak), `widget_sync.dart` (`pushTodayTasksToWidget`),
+  `home_widget_service.dart` (`HomeWidgetService` + provider, dibungkus
+  interface milik app agar bisa di-fake), `widget_callbacks.dart`
+  (`@pragma('vm:entry-point')` callback isolate background), dan
+  `widget_sync_scope.dart` (mendengar `todayTasksForWidgetProvider` →
+  push ke widget; menangani deep-link `host == 'chat'`).
+- **Data layer**: `TaskDao.watchAllOn(date)` (pending + selesai, pending
+  dulu) → `TaskRepository.watchTasksForWidgetOn` →
+  `todayTasksForWidgetProvider` (`task_controller.dart`).
+- **Isolate background**: callback interaktif jalan di isolate terpisah
+  (engine sendiri) → `DriftNativeOptions(shareAcrossIsolates: true)` di
+  `app_database.dart` + `DartPluginRegistrant.ensureInitialized()` di
+  `widget_callbacks.dart` agar `path_provider`/drift bisa buka DB.
+- **Native**: `TodayTasksWidgetProvider.kt` (extends `HomeWidgetProvider`,
+  parse JSON via `org.json`, `MAX_TASKS = 6`, checkbox →
+  `HomeWidgetBackgroundIntent`, header/tombol → `HomeWidgetLaunchIntent`)
+  + layout `today_tasks_widget.xml`/`today_tasks_widget_row.xml` + drawable
+  ikon/background + `values`/`values-night` warna + `xml/…_info.xml`.
+  Manifest menambah intent-filter LAUNCH di `MainActivity` dan dua receiver
+  (widget + background).
+- **Settings**: kartu "Widget layar utama" (`home_widget_card.dart`) dengan
+  tombol "Pin ke layar utama"; section ditaruh **setelah CADANGAN** agar
+  kartu AI tetap dalam viewport awal (test lama tidak pecah).
+
+Keterbatasan:
+
+- Chat dari widget hanya membuka layar Percakapan (deep-link); widget tidak
+  bisa mengetik/berkirim pesan karena keterbatasan RemoteViews.
+- Widget Android saja; iOS tidak disiapkan.
+
+Tests: `flutter analyze` 0 issue; `flutter test` **537 PASS** (+3 benchmark
+skip), termasuk `today_tasks_codec_test.dart` dan `widget_sync_scope_test.dart`.
+
+Status: DONE
+

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_widget_today_tasks">Tugas Hari Ini</string>
+    <string name="app_widget_chat">Chat</string>
+    <string name="app_widget_empty">Tidak ada tugas hari ini</string>
+    <string name="app_widget_toggle">Tandai selesai</string>
+</resources>

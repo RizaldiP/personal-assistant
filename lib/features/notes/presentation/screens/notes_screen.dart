@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/formatters/date_formats.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../../../shared/widgets/tag_chips.dart';
 import '../../domain/entities/note.dart';
 import '../providers/note_controller.dart';
@@ -52,7 +53,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         ],
         bottom: _searching
             ? PreferredSize(
-                preferredSize: const Size.fromHeight(72),
+                preferredSize: Size.fromHeight(
+                  72 *
+                      MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.5),
+                ),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.lg,
@@ -82,8 +86,10 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
       body: SafeArea(
         child: notesAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) =>
-              _ErrorState(onRetry: () => ref.invalidate(notesProvider(_query))),
+          error: (error, stackTrace) => ErrorState(
+            title: 'Catatan gagal dimuat',
+            onRetry: () => ref.invalidate(notesProvider(_query)),
+          ),
           data: (notes) => notes.isEmpty
               ? EmptyState(
                   icon: Icons.notes_outlined,
@@ -184,31 +190,6 @@ class _NoteTile extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 56),
-          const SizedBox(height: AppSpacing.lg),
-          const Text('Catatan gagal dimuat'),
-          const SizedBox(height: AppSpacing.lg),
-          FilledButton.tonal(
-            onPressed: onRetry,
-            child: const Text('Coba lagi'),
-          ),
-        ],
       ),
     );
   }

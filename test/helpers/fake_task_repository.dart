@@ -30,9 +30,30 @@ class FakeTaskRepository implements TaskRepository {
     yield* _changes.stream.map((_) => _pendingOn(date));
   }
 
+  @override
+  Stream<List<Task>> watchTasksForWidgetOn(String date) async* {
+    yield _allOn(date);
+    yield* _changes.stream.map((_) => _allOn(date));
+  }
+
   List<Task> _pendingOn(String date) => _tasks
       .where((t) => t.status == TaskStatus.pending && t.dueDate == date)
       .toList();
+
+  List<Task> _allOn(String date) {
+    final onDate = _tasks.where((t) => t.dueDate == date).toList();
+    onDate.sort((a, b) {
+      if (a.status != b.status) {
+        return a.status == TaskStatus.pending ? -1 : 1;
+      }
+      final at = a.dueTime ?? '';
+      final bt = b.dueTime ?? '';
+      final byTime = at.compareTo(bt);
+      if (byTime != 0) return byTime;
+      return (a.id ?? 0).compareTo(b.id ?? 0);
+    });
+    return onDate;
+  }
 
   @override
   Future<Task?> getById(int id) async {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../../chat/presentation/screens/chat_screen.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 import '../../domain/entities/inbox_item.dart';
@@ -34,10 +35,10 @@ class InboxScreen extends ConsumerWidget {
       ),
       body: itemsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => const EmptyState(
-          icon: Icons.error_outline,
+        error: (error, stackTrace) => ErrorState(
           title: 'Gagal memuat inbox',
           message: 'Coba buka lagi layarnya.',
+          onRetry: () => ref.invalidate(inboxItemsProvider),
         ),
         data: (items) {
           final visible = items.where((item) {
@@ -58,19 +59,18 @@ class InboxScreen extends ConsumerWidget {
                   AppSpacing.lg,
                   AppSpacing.sm,
                 ),
-                child: Row(
+                child: Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.xs,
                   children: [
                     for (final status in InboxStatusFilter.values)
-                      Padding(
-                        padding: const EdgeInsets.only(right: AppSpacing.sm),
-                        child: ChoiceChip(
-                          key: Key('inbox-filter-${status.name}'),
-                          label: Text(status.label),
-                          selected: filter == status,
-                          onSelected: (_) => ref
-                              .read(inboxUiProvider.notifier)
-                              .setFilter(status),
-                        ),
+                      ChoiceChip(
+                        key: Key('inbox-filter-${status.name}'),
+                        label: Text(status.label),
+                        selected: filter == status,
+                        onSelected: (_) => ref
+                            .read(inboxUiProvider.notifier)
+                            .setFilter(status),
                       ),
                   ],
                 ),

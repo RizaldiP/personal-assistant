@@ -6,6 +6,9 @@ abstract interface class TaskRepository {
 
   Stream<List<Task>> watchTasksOn(String date);
 
+  /// Semua tugas (pending + selesai) pada [date] untuk widget layar utama.
+  Stream<List<Task>> watchTasksForWidgetOn(String date);
+
   Future<Task?> getById(int id);
 
   Future<List<Task>> getAll();

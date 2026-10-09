@@ -9,6 +9,9 @@ daftar ini tanpa mencatat alasannya di bagian "Catatan".
 
 - Dependensi sesuai phase (jangan dipasang lebih awal).
 - Tidak ada package networking/cloud untuk fitur utama.
+- AndroidManifest memuat izin `INTERNET` di `src/main`, tetapi hanya dipakai
+  unduhan model AI lokal (consent user, Pengaturan → AI Lokal). Fitur utama
+  tetap berjalan penuh tanpa jaringan.
 - Tidak ada package analytics/crash-report.
 - Tidak ada package AI cloud.
 - Setiap plugin platform dibungkus interface milik aplikasi.
@@ -142,3 +145,29 @@ opsional dengan consent pengguna, dan tidak menyimpan data pengguna.
 - Tidak ada auto-upgrade dependency di tengah phase.
 - Upgrade hanya saat phase membutuhkan, dicatat di `07-roadmap.md`.
 - Sebelum upgrade besar: jalankan seluruh test.
+
+## 11. Widget layar utama Android (lanjutan PHASE 17)
+
+| Package | Versi | Keperluan |
+|---------|-------|-----------|
+| `home_widget` | 0.10.0 | jembatan Flutter ↔ App Widget Android (RemoteViews/XML, Android saja) |
+
+- Teknologi: **Android XML / RemoteViews** (bukan Jetpack Glance). Layout,
+  drawable, warna, dan provider native ada di
+  `android/app/src/main/res/**` dan
+  `TodayTasksWidgetProvider.kt`.
+- Plugin dibungkus interface milik app (`HomeWidgetService` +
+  `homeWidgetServiceProvider`) agar bisa di-fake di test tanpa plugin.
+- Sinkronisasi data: `WidgetSyncScope` mendengar `todayTasksForWidgetProvider`
+  lalu menulis JSON via `HomeWidget.saveWidgetData` (key `today_tasks_json`,
+  `today_tasks_updated_at`) dan memanggil `HomeWidget.updateWidget`.
+- Interaksi (centang selesai, tombol Chat) memakai
+  `HomeWidgetBackgroundIntent` / `HomeWidgetLaunchIntent`. Callback interaktif
+  berjalan di **isolate background** → perlu `DriftNativeOptions(
+  shareAcrossIsolates: true)` dan `DartPluginRegistrant.ensureInitialized()`
+  di `widget_callbacks.dart`.
+- Native manifest menambah dua receiver: `.TodayTasksWidgetProvider`
+  (`APPWIDGET_UPDATE`, `exported=true`) dan
+  `es.antonborri.home_widget.HomeWidgetBackgroundReceiver` (action
+  `BACKGROUND`, `exported=true`), plus intent-filter
+  `es.antonborri.home_widget.action.LAUNCH` pada `MainActivity`.

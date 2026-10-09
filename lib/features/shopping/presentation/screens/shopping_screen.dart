@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../domain/entities/shopping_item.dart';
 import '../../domain/entities/shopping_list.dart';
 import '../providers/shopping_controller.dart';
@@ -26,8 +27,10 @@ class ShoppingScreen extends ConsumerWidget {
       body: SafeArea(
         child: listsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) =>
-              _ErrorState(onRetry: () => ref.invalidate(shoppingListsProvider)),
+          error: (error, stackTrace) => ErrorState(
+            title: 'Belanja gagal dimuat',
+            onRetry: () => ref.invalidate(shoppingListsProvider),
+          ),
           data: (lists) => lists.isEmpty
               ? EmptyState(
                   icon: Icons.shopping_basket_outlined,
@@ -176,16 +179,22 @@ class _ShoppingListCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     list.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                Text(
-                  '${list.items.where((i) => i.isChecked).length}/'
-                  '${list.items.length}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                Flexible(
+                  child: Text(
+                    '${list.items.where((i) => i.isChecked).length}/'
+                    '${list.items.length}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -303,31 +312,6 @@ class _SectionLabel extends StatelessWidget {
         style: AppTypography.sectionLabel(
           theme.textTheme,
         )?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-      ),
-    );
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.error_outline, size: 56),
-          const SizedBox(height: AppSpacing.lg),
-          const Text('Belanja gagal dimuat'),
-          const SizedBox(height: AppSpacing.lg),
-          FilledButton.tonal(
-            onPressed: onRetry,
-            child: const Text('Coba lagi'),
-          ),
-        ],
       ),
     );
   }

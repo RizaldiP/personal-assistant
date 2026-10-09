@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../shared/widgets/empty_state.dart';
+import '../../../../shared/widgets/error_state.dart';
 import '../../../search/presentation/screens/search_screen.dart';
 import '../../domain/calendar_event.dart';
 import '../providers/calendar_providers.dart';
@@ -10,7 +11,11 @@ import '../providers/calendar_providers.dart';
 /// Layar Kalender (PHASE 13): grid bulanan (Senin pertama) dengan titik
 /// kejadian tugas/reminder/jurnal, pilihan hari, dan filter tipe.
 class CalendarScreen extends ConsumerStatefulWidget {
-  const CalendarScreen({super.key});
+  const CalendarScreen({super.key, this.initialFilter});
+
+  /// Filter awal saat layar dibuka; `null` = "Semua". Contoh: chip
+  /// "Daftar Reminder" di chat mengirim [CalendarEventTypes.reminder].
+  final String? initialFilter;
 
   @override
   ConsumerState<CalendarScreen> createState() => _CalendarScreenState();
@@ -41,11 +46,12 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   late DateTime _month;
   late DateTime _selected;
-  String _filter = 'all';
+  late String _filter;
 
   @override
   void initState() {
     super.initState();
+    _filter = widget.initialFilter ?? 'all';
     final now = DateTime.now();
     _month = DateTime(now.year, now.month);
     _selected = DateTime(now.year, now.month, now.day);
@@ -117,17 +123,16 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               AppSpacing.lg,
               AppSpacing.xs,
             ),
-            child: Row(
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
               children: [
                 for (final entry in _filterLabels.entries)
-                  Padding(
-                    padding: const EdgeInsets.only(right: AppSpacing.sm),
-                    child: ChoiceChip(
-                      key: Key('calendar-filter-${entry.key}'),
-                      label: Text(entry.value),
-                      selected: _filter == entry.key,
-                      onSelected: (_) => setState(() => _filter = entry.key),
-                    ),
+                  ChoiceChip(
+                    key: Key('calendar-filter-${entry.key}'),
+                    label: Text(entry.value),
+                    selected: _filter == entry.key,
+                    onSelected: (_) => setState(() => _filter = entry.key),
                   ),
               ],
             ),
@@ -141,6 +146,7 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             }).toList(),
             loading: eventsAsync.isLoading,
             error: eventsAsync.hasError,
+            onRetry: () => ref.invalidate(calendarEventsProvider),
           ),
         ],
       ),
@@ -186,8 +192,20 @@ class _MonthHeader extends StatelessWidget {
               key: const Key('calendar-month-label'),
               '$monthName ${month.year}',
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: TextButton(
+                key: const Key('calendar-today-button'),
+                onPressed: onToday,
+                child: const Text('Hari ini'),
               ),
             ),
           ),
@@ -196,11 +214,6 @@ class _MonthHeader extends StatelessWidget {
             tooltip: 'Bulan berikutnya',
             icon: const Icon(Icons.chevron_right),
             onPressed: onNext,
-          ),
-          TextButton(
-            key: const Key('calendar-today-button'),
-            onPressed: onToday,
-            child: const Text('Hari ini'),
           ),
         ],
       ),
@@ -287,11 +300,12 @@ class _MonthGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final cellWidth = constraints.maxWidth / 7;
+        final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
         return GridView.count(
           crossAxisCount: 7,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          childAspectRatio: cellWidth / 46,
+          childAspectRatio: cellWidth / (48 * scale),
           children: cells,
         );
       },
@@ -361,6 +375,7 @@ class _DayCell extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Row(
+              mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 for (final type in const [
@@ -398,12 +413,14 @@ class _DayEventList extends StatelessWidget {
     required this.events,
     required this.loading,
     required this.error,
+    required this.onRetry,
   });
 
   final DateTime selected;
   final List<CalendarEvent> events;
   final bool loading;
   final bool error;
+  final VoidCallback onRetry;
 
   static const List<String> _monthNames = [
     'Januari',
@@ -453,10 +470,10 @@ class _DayEventList extends StatelessWidget {
             child: LinearProgressIndicator(),
           )
         else if (error)
-          const EmptyState(
-            icon: Icons.error_outline,
+          ErrorState(
             title: 'Gagal memuat kejadian',
             message: 'Coba buka lagi layarnya.',
+            onRetry: onRetry,
           )
         else if (events.isEmpty)
           const EmptyState(

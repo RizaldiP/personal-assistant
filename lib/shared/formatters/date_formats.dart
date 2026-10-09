@@ -40,4 +40,18 @@ abstract final class DateFormats {
       '${local.day.toString().padLeft(2, '0')}',
     );
   }
+
+  /// Nama bulan `1..12` → `Januari` … `Desember`.
+  static String monthName(int month) {
+    if (month < 1 || month > 12) return '';
+    return _months[month - 1];
+  }
+
+  /// Jam `HH:mm` dari [DateTime] lokal: `14:30`.
+  static String shortTimeOfDay(DateTime date) {
+    final local = date.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
 }
