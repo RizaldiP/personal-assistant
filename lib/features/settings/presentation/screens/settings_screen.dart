@@ -8,6 +8,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../widgets/ai_model_card.dart';
 import '../widgets/backup_section.dart';
 import '../widgets/home_widget_card.dart';
+import '../widgets/notification_permission_card.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -128,6 +129,15 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           const BackupSection(),
+          const SizedBox(height: AppSpacing.xl),
+          Text(
+            'NOTIFIKASI',
+            style: AppTypography.sectionLabel(
+              theme.textTheme,
+            )?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          const NotificationPermissionCard(),
           const SizedBox(height: AppSpacing.xl),
           Text(
             'WIDGET',

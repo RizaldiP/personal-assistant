@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'app.dart';
 import 'core/services/notification_scheduler.dart';
 import 'core/widget/home_widget_service.dart';
+import 'features/todo/presentation/providers/daily_task_reminder.dart';
 
 /// Titik masuk aplikasi.
 ///
@@ -24,6 +25,9 @@ Future<void> main({List<Override> overrides = const []}) async {
 
   final homeWidgetService = container.read(homeWidgetServiceProvider);
   await homeWidgetService.initialize();
+
+  // Sinkronkan digest tugas harian (08.00) dengan daftar tugas saat ini.
+  await container.read(dailyTaskReminderProvider.notifier).reconcile();
 
   runApp(
     UncontrolledProviderScope(

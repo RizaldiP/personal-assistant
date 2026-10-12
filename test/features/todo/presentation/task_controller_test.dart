@@ -4,24 +4,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:personal_offline/core/database/database_provider.dart';
+import 'package:personal_offline/core/services/notification_scheduler.dart';
 import 'package:personal_offline/core/utils/clock.dart';
 import 'package:personal_offline/features/todo/data/repositories/task_repository_impl.dart';
 import 'package:personal_offline/features/todo/domain/entities/task.dart';
+import 'package:personal_offline/features/todo/presentation/providers/daily_task_reminder.dart';
 import 'package:personal_offline/features/todo/presentation/providers/task_controller.dart';
 
+import '../../../helpers/fake_notification_scheduler.dart';
 import '../../../helpers/fake_task_repository.dart';
 
 void main() {
   late FakeTaskRepository repository;
+  late FakeNotificationScheduler scheduler;
   late FixedClock clock;
   late ProviderContainer container;
 
   setUp(() {
     repository = FakeTaskRepository();
+    scheduler = FakeNotificationScheduler();
     clock = FixedClock(DateTime(2026, 10, 5, 8));
     container = ProviderContainer(
       overrides: [
         taskRepositoryProvider.overrideWithValue(repository),
+        notificationSchedulerProvider.overrideWithValue(scheduler),
         clockProvider.overrideWithValue(clock),
       ],
     );
@@ -112,6 +118,49 @@ void main() {
         await container.read(todoControllerProvider.notifier).delete(id),
         isFalse,
       );
+    });
+  });
+
+  group('digest tugas harian', () {
+    test('create menjadwalkan digest harian 08.00', () async {
+      await container
+          .read(todoControllerProvider.notifier)
+          .create(const Task(title: 'Panggil ibu', dueDate: '2026-10-05'));
+
+      expect(
+        scheduler.dailyScheduled[dailyTasksNotificationId],
+        (hour: 8, minute: 0),
+      );
+      final body = scheduler.dailyContent[dailyTasksNotificationId]!.body;
+      expect(body, contains('1 tugas belum selesai'));
+      expect(body, contains('Panggil ibu'));
+    });
+
+    test('menyelesaikan semua tugas membatalkan digest', () async {
+      await container
+          .read(todoControllerProvider.notifier)
+          .create(const Task(title: 'Panggil ibu', dueDate: '2026-10-05'));
+      final task = repository.tasks.single;
+
+      await container
+          .read(todoControllerProvider.notifier)
+          .setCompleted(task, true);
+
+      expect(scheduler.cancelled, contains(dailyTasksNotificationId));
+      expect(
+        scheduler.dailyScheduled.containsKey(dailyTasksNotificationId),
+        isFalse,
+      );
+    });
+
+    test('delete tugas terakhir membatalkan digest', () async {
+      final id = await container
+          .read(todoControllerProvider.notifier)
+          .create(const Task(title: 'Panggil ibu', dueDate: '2026-10-05'));
+
+      await container.read(todoControllerProvider.notifier).delete(id);
+
+      expect(scheduler.cancelled, contains(dailyTasksNotificationId));
     });
   });
 

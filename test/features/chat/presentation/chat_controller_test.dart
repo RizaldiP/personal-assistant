@@ -13,6 +13,7 @@ import 'package:personal_offline/features/chat/data/repositories/chat_repository
 import 'package:personal_offline/features/chat/domain/entities/chat_message.dart';
 import 'package:personal_offline/features/chat/presentation/providers/chat_controller.dart';
 import 'package:personal_offline/features/chat/presentation/providers/pending_confirmation.dart';
+import 'package:personal_offline/features/chat/presentation/providers/pending_time_prompt.dart';
 import 'package:personal_offline/features/finance/data/repositories/expense_repository_impl.dart';
 import 'package:personal_offline/features/finance/domain/entities/expense_category.dart';
 import 'package:personal_offline/features/ideas/data/repositories/idea_repository_impl.dart';
@@ -267,7 +268,7 @@ void main() {
     expect(note.content, 'Nomor sparepart 12345');
     expect(note.source, 'rule');
     expect(note.rawInput, 'catatan: nomor sparepart 12345');
-    expect(note.confidence, 0.8);
+    expect(note.confidence, 0.95);
 
     expect(repository.saved, hasLength(2));
     final reply = repository.saved.last;
@@ -857,6 +858,88 @@ void main() {
       expect(reminderRepository.reminders, isEmpty);
       expect(noteRepository.notes, isEmpty);
       expect(container.read(pendingConfirmationProvider), isNotNull);
+    });
+  });
+
+  group('awalan eksplisit + tanya jam', () {
+    PendingTimePrompt? pendingTime() =>
+        container.read(pendingTimePromptProvider);
+
+    test('"tugas:" tanpa jam bertanya, belum menyimpan apa pun', () async {
+      await controller().send('tugas: kirim laporan');
+
+      expect(taskRepository.tasks, isEmpty);
+      expect(repository.saved, hasLength(2));
+      expect(repository.saved.first.intent, 'create_todo');
+      expect(repository.saved.first.status, ChatStatus.needsConfirmation);
+      expect(repository.saved.last.content, contains('Jam berapa'));
+      expect(pendingTime(), isNotNull);
+      expect(container.read(pendingConfirmationProvider), isNull);
+    });
+
+    test('jawaban jam membuat todo dengan due_time', () async {
+      await controller().send('tugas: kirim laporan');
+      await controller().send('jam 14');
+
+      final task = taskRepository.tasks.single;
+      expect(task.title, 'Kirim laporan');
+      expect(task.dueDate, '2026-10-05');
+      expect(task.dueTime, '14:00');
+      expect(container.read(pendingTimePromptProvider), isNull);
+      expect(
+        repository.saved.last.content,
+        'Todo dibuat: Kirim laporan · 5 Oktober 2026 jam 14:00',
+      );
+      expect(repository.saved, hasLength(4));
+    });
+
+    test('jawaban tanpa jam memakai default 08.00', () async {
+      await controller().send('tugas: kirim laporan');
+      await controller().send('tidak');
+
+      expect(taskRepository.tasks.single.dueTime, '08:00');
+    });
+
+    test('"tugas:" dengan jam langsung tidak bertanya', () async {
+      await controller().send('tugas: kirim laporan jam 9');
+
+      expect(container.read(pendingTimePromptProvider), isNull);
+      expect(taskRepository.tasks.single.dueTime, '09:00');
+    });
+
+    test('"reminder:" tanpa jam juga ditanyakan', () async {
+      await controller().send('reminder: bayar listrik');
+
+      expect(container.read(pendingTimePromptProvider), isNotNull);
+      expect(reminderRepository.reminders, isEmpty);
+
+      await controller().send('jam 7 pagi');
+
+      final reminder = reminderRepository.reminders.single;
+      expect(reminder.title, 'Bayar listrik');
+      expect(reminder.time, '07:00');
+    });
+
+    test('todo biasa tanpa jam tidak memicu pertanyaan jam', () async {
+      await controller().send('besok selesaikan laporan kapal');
+
+      expect(container.read(pendingTimePromptProvider), isNull);
+      expect(taskRepository.tasks, hasLength(1));
+    });
+
+    test('pesan asisten jam menandai pesan user selesai setelah dijawab', () async {
+      await controller().send('tugas: kirim laporan');
+      final userMessageId = repository.saved.first.id!;
+      expect(
+        (await repository.getById(userMessageId))!.status,
+        ChatStatus.needsConfirmation,
+      );
+
+      await controller().send('jam 10');
+
+      final resolved = await repository.getById(userMessageId);
+      expect(resolved!.status, ChatStatus.sent);
+      expect(resolved.resolvedAt, isNotNull);
     });
   });
 }

@@ -148,6 +148,57 @@ void main() {
     });
   });
 
+  group('RuleParser.awalan eksplisit', () {
+    test('"tugas: kirim laporan" → todo tanpa jam minta jam', () {
+      final result = RuleParser(now: today).parse('tugas: kirim laporan');
+
+      expect(result.intent, AppIntent.createTodo);
+      expect(result.entities['title'], 'Kirim laporan');
+      expect(result.entities['due_date'], '2026-10-06');
+      expect(result.entities['due_time'], '');
+      expect(result.entities['needs_time'], isTrue);
+    });
+
+    test('"tugas: kirim laporan jam 9" → todo lengkap tanpa needs_time', () {
+      final result = RuleParser(now: today).parse('tugas: kirim laporan jam 9');
+
+      expect(result.intent, AppIntent.createTodo);
+      expect(result.entities['title'], 'Kirim laporan');
+      expect(result.entities['due_time'], '09:00');
+      expect(result.entities.containsKey('needs_time'), isFalse);
+    });
+
+    test('"todo: bayar listrik" → todo (sinonim tugas)', () {
+      final result = RuleParser(now: today).parse('todo: bayar listrik');
+
+      expect(result.intent, AppIntent.createTodo);
+      expect(result.entities['title'], 'Bayar listrik');
+    });
+
+    test('"reminder: telepon ibu" → reminder minta jam', () {
+      final result = RuleParser(now: today).parse('reminder: telepon ibu');
+
+      expect(result.intent, AppIntent.createReminder);
+      expect(result.entities['title'], 'Telepon ibu');
+      expect(result.entities['date'], '2026-10-06');
+      expect(result.entities['needs_time'], isTrue);
+    });
+
+    test('"belanja: beras, telur" → daftar belanja terpisah koma', () {
+      final result = RuleParser(now: today).parse('belanja: beras, telur');
+
+      expect(result.intent, AppIntent.createShopping);
+      expect(result.entities['items'], ['Beras', 'Telur']);
+    });
+
+    test('"catatan: nomor 123" → catatan', () {
+      final result = RuleParser(now: today).parse('catatan: nomor 123');
+
+      expect(result.intent, AppIntent.createNote);
+      expect(result.entities['content'], 'Nomor 123');
+    });
+  });
+
   group('RuleParser.tidak dikenal', () {
     test('teks acak -> unknown + butuh konfirmasi', () {
       final result = RuleParser(now: today).parse('qwerty asdf');

@@ -11,6 +11,7 @@ import '../../data/repositories/chat_repository_impl.dart';
 import '../../domain/entities/chat_message.dart';
 import 'intent_executor.dart';
 import 'pending_confirmation.dart';
+import 'pending_time_prompt.dart';
 
 /// Aksi chat: menyimpan pesan user lalu memprosesnya lewat [IntentProcessor].
 ///
@@ -37,6 +38,14 @@ class ChatController extends Notifier<AsyncValue<void>> {
 
     state = const AsyncLoading();
     try {
+      // Bila asisten sedang menanyakan jam (awalan tugas:/reminder:), pesan
+      // berikutnya diperlakukan sebagai jawaban jam.
+      if (ref.read(pendingTimePromptProvider) != null) {
+        await ref.read(pendingTimePromptProvider.notifier).answer(text);
+        state = const AsyncData(null);
+        return;
+      }
+
       final repository = ref.read(chatRepositoryProvider);
       final processed = await ref.read(intentProcessorProvider).process(text);
 
@@ -45,23 +54,29 @@ class ChatController extends Notifier<AsyncValue<void>> {
 
       final needsConfirmation =
           processed.disposition == IntentDisposition.confirm;
+      // Awalan tugas:/reminder: tanpa jam → tanyakan jam dulu (PHASE: fitur).
+      final needsTime =
+          processed.disposition == IntentDisposition.execute &&
+          processed.result.entities['needs_time'] == true;
       final userMessage = ChatMessage(
         role: ChatRole.user,
         content: text,
         intent: processed.result.intent.storageValue,
         payload: jsonEncode(processed.result.toJson()),
-        status: needsConfirmation
+        status: needsConfirmation || needsTime
             ? ChatStatus.needsConfirmation
             : ChatStatus.sent,
       );
       final userMessageId = await repository.save(userMessage);
       await _captureUnresolved(processed, text, userMessageId);
 
-      final reply = await _reply(processed, text);
+      final reply = needsTime
+          ? _timePrompt(processed)
+          : await _reply(processed, text);
       await repository.save(
         ChatMessage(role: ChatRole.assistant, content: reply),
       );
-      if (processed.disposition == IntentDisposition.execute) {
+      if (processed.disposition == IntentDisposition.execute && !needsTime) {
         await _resolveInbox(text, processed.result.intent);
       }
 
@@ -78,11 +93,31 @@ class ChatController extends Notifier<AsyncValue<void>> {
               ),
             );
       }
+      if (needsTime) {
+        ref
+            .read(pendingTimePromptProvider.notifier)
+            .set(
+              PendingTimePrompt(
+                userMessageId: userMessageId,
+                rawText: text,
+                result: processed.result,
+                source: processed.source,
+              ),
+            );
+      }
       state = const AsyncData(null);
     } catch (error, stackTrace) {
       state = AsyncError<void>(error, stackTrace);
       rethrow;
     }
+  }
+
+  /// Pertanyaan jam untuk todo/reminder tanpa jam (awalan tugas:/reminder:).
+  String _timePrompt(ProcessedIntent processed) {
+    final title = (processed.result.entities['title'] as String?)?.trim() ?? '';
+    final label = title.isEmpty ? 'ini' : '"$title"';
+    return 'Jam berapa untuk $label? Balas dengan jam (mis. "jam 9" atau '
+        '"10:30"), atau ketik "tidak" untuk memakai jam 08.00.';
   }
 
   /// Balasan asisten untuk satu hasil routing.

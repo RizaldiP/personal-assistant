@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/database_provider.dart';
 import '../../data/repositories/task_repository_impl.dart';
 import '../../domain/entities/task.dart';
+import 'daily_task_reminder.dart';
 
 /// Daftar seluruh tugas (sumber kebenaran database).
 final todoListProvider = StreamProvider<List<Task>>(
@@ -27,16 +28,23 @@ class TodoController extends Notifier<void> {
   @override
   void build() {}
 
-  Future<int> create(Task task) =>
-      ref.read(taskRepositoryProvider).create(task);
+  Future<int> create(Task task) async {
+    final id = await ref.read(taskRepositoryProvider).create(task);
+    await _reconcileDailyReminder();
+    return id;
+  }
 
-  Future<bool> update(Task task) =>
-      ref.read(taskRepositoryProvider).update(task);
+  Future<bool> update(Task task) async {
+    final saved = await ref.read(taskRepositoryProvider).update(task);
+    if (saved) await _reconcileDailyReminder();
+    return saved;
+  }
 
-  Future<bool> setCompleted(Task task, bool done) {
+  Future<bool> setCompleted(Task task, bool done) async {
     final repository = ref.read(taskRepositoryProvider);
+    final bool saved;
     if (!done) {
-      return repository.update(
+      saved = await repository.update(
         Task(
           id: task.id,
           title: task.title,
@@ -53,14 +61,25 @@ class TodoController extends Notifier<void> {
           updatedAt: task.updatedAt,
         ),
       );
+    } else {
+      final now = ref.read(clockProvider).now();
+      saved = await repository.update(
+        task.copyWith(status: TaskStatus.done, completedAt: now.toUtc()),
+      );
     }
-    final now = ref.read(clockProvider).now();
-    return repository.update(
-      task.copyWith(status: TaskStatus.done, completedAt: now.toUtc()),
-    );
+    if (saved) await _reconcileDailyReminder();
+    return saved;
   }
 
-  Future<bool> delete(int id) => ref.read(taskRepositoryProvider).delete(id);
+  Future<bool> delete(int id) async {
+    final saved = await ref.read(taskRepositoryProvider).delete(id);
+    if (saved) await _reconcileDailyReminder();
+    return saved;
+  }
+
+  /// Menyinkronkan notifikasi digest tugas harian (08.00) setelah perubahan.
+  Future<void> _reconcileDailyReminder() =>
+      ref.read(dailyTaskReminderProvider.notifier).reconcile();
 }
 
 final todoControllerProvider = NotifierProvider<TodoController, void>(

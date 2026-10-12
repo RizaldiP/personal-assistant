@@ -23,6 +23,7 @@ import '../../../search/data/repositories/search_repository_impl.dart';
 import '../../../shopping/presentation/providers/shopping_controller.dart';
 import '../../../todo/data/repositories/task_repository_impl.dart';
 import '../../../todo/domain/entities/task.dart';
+import '../../../todo/presentation/providers/daily_task_reminder.dart';
 
 /// Menjalankan [AiIntentResult] yang sudah dikonfirmasi ke repository
 /// aplikasi dan mengembalikan balasan chat untuk user.
@@ -68,9 +69,11 @@ class IntentExecutor {
     AiIntentResult parsed,
     String source,
   ) async {
+    final dueTime = _entityText(parsed, 'due_time');
     final task = Task(
       title: parsed.entities['title'] as String? ?? rawText,
       dueDate: parsed.entities['due_date'] as String?,
+      dueTime: dueTime.isEmpty ? null : dueTime,
       priority: TaskPriority.parse(parsed.entities['priority'] as String?),
       source: source,
       rawInput: rawText,
@@ -84,6 +87,7 @@ class IntentExecutor {
       date: task.dueDate,
       time: task.dueTime,
     );
+    await _reconcileDailyReminder();
     return _todoReply(parsed);
   }
 
@@ -92,9 +96,18 @@ class IntentExecutor {
     final date = DateFormats.longIndonesia(
       parsed.entities['due_date'] as String?,
     );
+    final time = (parsed.entities['due_time'] as String?)?.trim() ?? '';
+    final parts = <String>[
+      if (date.isNotEmpty) date,
+      if (time.isNotEmpty) 'jam $time',
+    ];
     final base = 'Todo dibuat: $title';
-    return date.isEmpty ? base : '$base · $date';
+    return parts.isEmpty ? base : '$base · ${parts.join(' ')}';
   }
+
+  /// Menyinkronkan notifikasi digest tugas harian setelah todo berubah.
+  Future<void> _reconcileDailyReminder() =>
+      _ref.read(dailyTaskReminderProvider.notifier).reconcile();
 
   Future<String> _createReminder(
     String rawText,
@@ -413,6 +426,7 @@ class IntentExecutor {
     );
     if (!await repository.update(updated)) return _gone(_targetLabel(parsed));
     await _remember('todo', id, title, date: dueDate, time: dueTime);
+    await _reconcileDailyReminder();
     final details = <String>[
       if (dueDate != null) DateFormats.longIndonesia(dueDate),
       if (dueTime != null) 'jam $dueTime',
@@ -440,6 +454,7 @@ class IntentExecutor {
     if (!saved) return _gone(label);
 
     await _ref.read(lastItemContextProvider).clear();
+    if (type == 'todo') await _reconcileDailyReminder();
     return '${type == 'reminder' ? 'Reminder' : 'Todo'} dihapus: $label';
   }
 
@@ -463,6 +478,7 @@ class IntentExecutor {
           completedAt: _ref.read(clockProvider).now(),
         ),
       );
+      if (saved) await _reconcileDailyReminder();
       return saved ? 'Todo diselesaikan: ${task.title}' : _gone(label);
     }
 

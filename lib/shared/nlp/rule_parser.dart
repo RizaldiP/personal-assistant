@@ -23,6 +23,12 @@ class RuleParser {
   static const List<String> _noteMarkers = ['catat:', 'catatan:', 'note:'];
   static const List<String> _ideaMarkers = ['ide:', 'trik:', 'inspirasi:'];
 
+  /// Awalan eksplisit `kata:` / `kata :` untuk memaksa jenis entri
+  /// (tugas, reminder, belanja, catatan). Toleran spasi sebelum titik dua.
+  static final RegExp _prefix = RegExp(
+    r'^(catatan|catat|note|tugas|todo|reminder|belanja)\s*:\s*(.*)$',
+  );
+
   static const Set<String> _spendWords = {
     'makan',
     'minum',
@@ -93,6 +99,11 @@ class RuleParser {
   AiIntentResult parse(String raw) {
     final text = Normalizer.normalize(raw);
 
+    // 0. Awalan eksplisit (`tugas:`, `reminder:`, `belanja:`, `catatan:`)
+    //    memaksa jenis entri, didahulukan atas semua deteksi lain.
+    final prefixed = _prefixed(text);
+    if (prefixed != null) return prefixed;
+
     final idea = _contentAfterMarkers(text, _ideaMarkers, leadingWord: 'ide');
     if (idea != null) {
       return AiIntentResult(
@@ -153,6 +164,74 @@ class RuleParser {
       intent: AppIntent.unknown,
       confidence: 0.1,
       needsConfirmation: true,
+    );
+  }
+
+  /// Intent dari awalan eksplisit; null bila tidak ada awalan atau isinya kosong.
+  AiIntentResult? _prefixed(String text) {
+    final match = _prefix.firstMatch(text);
+    if (match == null) return null;
+    final key = match.group(1)!;
+    final rest = match.group(2)!.trim();
+    if (rest.isEmpty) return null;
+
+    return switch (key) {
+      'catatan' || 'catat' || 'note' => AiIntentResult(
+        intent: AppIntent.createNote,
+        confidence: 0.95,
+        entities: {'content': _capitalize(rest)},
+      ),
+      'tugas' || 'todo' => _prefixedTodo(rest),
+      'reminder' => _prefixedReminder(rest),
+      _ => _prefixedShopping(rest),
+    };
+  }
+
+  AiIntentResult _prefixedTodo(String text) {
+    final date = _dateParser.parse(text);
+    final time = _timeParser.parse(text);
+    final title = _capitalize(
+      _remaining(text, date, dropWords: {...?time?.matched.split(' ')}),
+    );
+    return AiIntentResult(
+      intent: AppIntent.createTodo,
+      confidence: 0.95,
+      entities: {
+        'title': title,
+        'due_date': _isoDate(date?.date ?? _reference),
+        'due_time': time?.hourMinute ?? '',
+        'priority': 'normal',
+        if (time == null) 'needs_time': true,
+      },
+    );
+  }
+
+  AiIntentResult _prefixedReminder(String text) {
+    final date = _dateParser.parse(text);
+    final time = _timeParser.parse(text);
+    final title = _capitalize(
+      _remaining(text, date, dropWords: {...?time?.matched.split(' ')}),
+    );
+    return AiIntentResult(
+      intent: AppIntent.createReminder,
+      confidence: 0.95,
+      entities: {
+        'title': title,
+        'date': _isoDate(date?.date ?? _reference),
+        'time': time?.hourMinute ?? '',
+        'priority': 'normal',
+        if (time == null) 'needs_time': true,
+      },
+    );
+  }
+
+  AiIntentResult _prefixedShopping(String text) {
+    final date = _dateParser.parse(text);
+    final bought = _remaining(text, date, dropWords: _shoppingWords);
+    return AiIntentResult(
+      intent: AppIntent.createShopping,
+      confidence: 0.95,
+      entities: {'items': _itemsOf(bought)},
     );
   }
 
