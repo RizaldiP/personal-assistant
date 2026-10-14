@@ -7,7 +7,6 @@ import android.net.Uri
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
-import es.antonborri.home_widget.HomeWidgetBackgroundIntent
 import es.antonborri.home_widget.HomeWidgetPlugin
 
 /**
@@ -59,15 +58,18 @@ private class TodayTasksRemoteViewsFactory(
             row.setTextViewText(R.id.widget_row_time, task.time)
         }
 
-        val toggleIntent = HomeWidgetBackgroundIntent.getBroadcast(
-            context,
-            Uri.parse(
-                "${TodayTasksWidgetContract.SCHEME}://${TodayTasksWidgetContract.TOGGLE_HOST}" +
-                    "?${TodayTasksWidgetContract.TOGGLE_ID}=${task.id}",
-            ),
-        )
-        row.setOnClickPendingIntent(R.id.widget_row_check, toggleIntent)
-        row.setOnClickPendingIntent(R.id.widget_row_title, toggleIntent)
+        // Untuk child view di dalam item collection (ListView), klik harus memakai
+        // fill-in intent yang digabung dengan pending intent template dari provider.
+        // Data URI menjadi pembawa id tugas yang diteruskan ke callback Dart.
+        val toggleIntent =
+            Intent().apply {
+                data = Uri.parse(
+                    "${TodayTasksWidgetContract.SCHEME}://${TodayTasksWidgetContract.TOGGLE_HOST}" +
+                        "?${TodayTasksWidgetContract.TOGGLE_ID}=${task.id}",
+                )
+            }
+        row.setOnClickFillInIntent(R.id.widget_row_check, toggleIntent)
+        row.setOnClickFillInIntent(R.id.widget_row_title, toggleIntent)
         return row
     }
 

@@ -1,11 +1,14 @@
 package com.personaloffline.personal_offline
 
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
+import android.os.Build
 import android.widget.RemoteViews
+import es.antonborri.home_widget.HomeWidgetBackgroundReceiver
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
 
@@ -47,6 +50,25 @@ class TodayTasksWidgetProvider : HomeWidgetProvider() {
                 }
             views.setRemoteAdapter(R.id.widget_list, serviceIntent)
             views.setEmptyView(R.id.widget_list, R.id.widget_empty)
+
+            // Klik pada baris collection TIDAK boleh memakai setOnClickPendingIntent
+            // (Android mengabaikannya untuk child view item collection). Wajib pakai
+            // template + setOnClickFillInIntent (lihat TodayTasksWidgetService.kt).
+            // Template ini harus MUTABLE agar data URI dari fill-in ikut tergabung;
+            // HomeWidgetBackgroundIntent bawaan memaksa FLAG_IMMUTABLE sehingga tidak
+            // bisa dipakai di sini.
+            val toggleTemplate =
+                Intent(context, HomeWidgetBackgroundReceiver::class.java).apply {
+                    action = TodayTasksWidgetContract.BACKGROUND_ACTION
+                }
+            var templateFlags = PendingIntent.FLAG_UPDATE_CURRENT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                templateFlags = templateFlags or PendingIntent.FLAG_MUTABLE
+            }
+            views.setPendingIntentTemplate(
+                R.id.widget_list,
+                PendingIntent.getBroadcast(context, 0, toggleTemplate, templateFlags),
+            )
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
             appWidgetManager.notifyAppWidgetViewDataChanged(

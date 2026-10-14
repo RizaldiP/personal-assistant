@@ -16,6 +16,7 @@ internal object TodayTasksWidgetContract {
     const val CHAT_HOST = "chat"
     const val TOGGLE_HOST = "toggle"
     const val TOGGLE_ID = "id"
+    const val BACKGROUND_ACTION = "es.antonborri.home_widget.action.BACKGROUND"
 }
 
 /** Satu baris tugas pada widget. */

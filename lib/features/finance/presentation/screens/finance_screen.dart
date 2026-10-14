@@ -13,18 +13,74 @@ import '../../domain/entities/expense_category.dart';
 import '../providers/finance_controller.dart';
 
 /// Layar keuangan: budget, ringkasan harian/bulanan, dan daftar pengeluaran.
-class FinanceScreen extends ConsumerWidget {
+class FinanceScreen extends ConsumerStatefulWidget {
   const FinanceScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FinanceScreen> createState() => _FinanceScreenState();
+}
+
+class _FinanceScreenState extends ConsumerState<FinanceScreen> {
+  final _searchController = TextEditingController();
+  bool _searching = false;
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final expensesAsync = ref.watch(expensesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Keuangan')),
+      appBar: AppBar(
+        title: const Text('Keuangan'),
+        actions: [
+          IconButton(
+            tooltip: _searching ? 'Tutup pencarian' : 'Cari pengeluaran',
+            icon: Icon(_searching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                _searching = !_searching;
+                if (!_searching) {
+                  _searchController.clear();
+                  _query = '';
+                }
+              });
+            },
+          ),
+        ],
+        bottom: _searching
+            ? PreferredSize(
+                preferredSize: Size.fromHeight(
+                  72 *
+                      MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    0,
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'Cari pengeluaran...',
+                    ),
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
+              )
+            : null,
+      ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Tambah pengeluaran',
-        onPressed: () => _promptAddExpense(context, ref),
+        onPressed: () => _promptAddExpense(context),
         child: const Icon(Icons.add),
       ),
       body: SafeArea(
@@ -34,29 +90,40 @@ class FinanceScreen extends ConsumerWidget {
             title: 'Keuangan gagal dimuat',
             onRetry: () => ref.invalidate(expensesProvider),
           ),
-          data: (expenses) => Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _SummaryCard(expenses: expenses),
-              Expanded(
-                child: expenses.isEmpty
-                    ? const EmptyState(
-                        icon: Icons.account_balance_wallet_outlined,
-                        title: 'Belum ada pengeluaran',
-                        message:
-                            'Ketuk tombol + untuk mencatat, atau ketik di '
-                            'percakapan seperti "tadi makan ayam 25 ribu".',
-                      )
-                    : _ExpenseList(expenses: expenses),
-              ),
-            ],
-          ),
+          data: (expenses) {
+            final filtered = _filterExpenses(expenses, _query);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _SummaryCard(expenses: expenses),
+                Expanded(
+                  child: expenses.isEmpty
+                      ? const EmptyState(
+                          icon: Icons.account_balance_wallet_outlined,
+                          title: 'Belum ada pengeluaran',
+                          message:
+                              'Ketuk tombol + untuk mencatat, atau ketik di '
+                              'percakapan seperti "tadi makan ayam 25 ribu".',
+                        )
+                      : filtered.isEmpty
+                      ? EmptyState(
+                          icon: Icons.search_off,
+                          title: 'Tidak ditemukan',
+                          message:
+                              'Tidak ada pengeluaran yang cocok dengan '
+                              '"$_query".',
+                        )
+                      : _ExpenseList(expenses: filtered),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Future<void> _promptAddExpense(BuildContext context, WidgetRef ref) async {
+  Future<void> _promptAddExpense(BuildContext context) async {
     final amount = TextEditingController();
     final description = TextEditingController();
     var category = ExpenseCategory.makanan;
@@ -168,6 +235,18 @@ class FinanceScreen extends ConsumerWidget {
       '${date.year.toString().padLeft(4, '0')}-'
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
+}
+
+List<Expense> _filterExpenses(List<Expense> expenses, String query) {
+  final keyword = query.trim().toLowerCase();
+  if (keyword.isEmpty) return expenses;
+  return expenses
+      .where(
+        (expense) =>
+            expense.description.toLowerCase().contains(keyword) ||
+            expense.category.label.toLowerCase().contains(keyword),
+      )
+      .toList();
 }
 
 /// Kartu budget + ringkasan pengeluaran hari ini dan bulan ini.

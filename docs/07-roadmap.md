@@ -1262,3 +1262,41 @@ skip), termasuk `today_tasks_codec_test.dart` dan `widget_sync_scope_test.dart`.
 
 Status: DONE
 
+### PHASE 17c — Perbaikan klik widget + pencarian per layar
+
+Ringkasan:
+
+- **Bug widget (klik centang tidak bereaksi)**: widget diubah menjadi
+  collection `ListView` (RemoteViewsService) saat scrollable. Untuk child
+  view di dalam item collection, Android **mengabaikan**
+  `setOnClickPendingIntent`; klik harus lewat
+  `setPendingIntentTemplate` (di `AppWidgetProvider`) +
+  `setOnClickFillInIntent` (di `RemoteViewsFactory`). Selain itu template
+  harus `FLAG_MUTABLE` agar data URI fill-in ikut tergabung —
+  `HomeWidgetBackgroundIntent.getBroadcast()` bawaan memaksa
+  `FLAG_IMMUTABLE` sehingga tidak bisa dipakai untuk template.
+- Perbaikan **native saja** (tanpa ubah Dart):
+  `TodayTasksWidgetProvider.kt` memasang template broadcast MUTABLE ke
+  `HomeWidgetBackgroundReceiver` (action
+  `es.antonborri.home_widget.action.BACKGROUND`) untuk `R.id.widget_list`;
+  `TodayTasksWidgetService.getViewAt()` memakai fill-in `Intent` berisi
+  `personaloffline://toggle?id=<id>` pada `widget_row_check` dan
+  `widget_row_title`. Callback Dart sudah membaca `uri.host == 'toggle'`.
+  Konstanta action ditambah di `TodayTasksWidgetData.kt`.
+- **Pencarian per layar** (melengkapi pola Catatan/Jurnal/Ide): bar pencarian
+  toggleable di AppBar Tugas, Belanja, dan Keuangan. Filter dilakukan di
+  sisi klien agar live: Tugas by judul/deskripsi, Belanja by judul daftar
+  atau nama item (daftar yang cocok judul ditampilkan utuh, sisanya hanya
+  item yang cocok), Keuangan by keterangan/kategori (kartu ringkasan tetap
+  dihitung dari seluruh data). Hasil kosong menampilkan empty state
+  "Tidak ditemukan". Kolom pencarian tersembunyi secara default sehingga
+  tes lama tidak berubah.
+
+Tests: `flutter analyze` 0 issue; `flutter test` **560 PASS** (+3 benchmark
+skip), termasuk tes baru "pencarian memfilter ..." di
+`todo_screen_test.dart`, `shopping_screen_test.dart`, dan
+`finance_screen_test.dart`. Verifikasi klik widget tetap butuh perangkat
+Android fisik/emulator.
+
+Status: DONE
+

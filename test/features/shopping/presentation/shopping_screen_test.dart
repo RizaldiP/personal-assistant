@@ -110,4 +110,31 @@ void main() {
     expect(find.text('Buah'), findsOneWidget);
     expect(find.text('0/1'), findsNWidgets(2));
   });
+
+  testWidgets('pencarian memfilter item belanja', (tester) async {
+    final repository = FakeShoppingRepository(
+      seed: [
+        listWith('Pasar', items: ['Beras', 'Minyak']),
+        listWith('Rumah', items: ['Sabun']),
+      ],
+    );
+    await pumpShopping(tester, repository);
+    expect(find.text('Beras'), findsOneWidget);
+    expect(find.text('Sabun'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Cari belanja'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'minyak');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Minyak'), findsOneWidget);
+    expect(find.text('Beras'), findsNothing);
+    expect(find.text('Sabun'), findsNothing);
+
+    await tester.tap(find.byTooltip('Tutup pencarian'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Beras'), findsOneWidget);
+    expect(find.text('Sabun'), findsOneWidget);
+  });
 }

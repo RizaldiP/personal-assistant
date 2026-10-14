@@ -212,4 +212,40 @@ void main() {
 
     expect(find.textContaining('Melebihi budget'), findsOneWidget);
   });
+
+  testWidgets('pencarian memfilter pengeluaran', (tester) async {
+    final repository = FakeExpenseRepository(
+      seed: [
+        expense(
+          amount: 25000,
+          category: ExpenseCategory.makanan,
+          description: 'Makan ayam',
+          id: 1,
+        ),
+        expense(
+          amount: 10000,
+          category: ExpenseCategory.transport,
+          description: 'Ojek',
+          id: 2,
+        ),
+      ],
+    );
+    await pumpFinance(tester, repository);
+    expect(find.text('Makan ayam'), findsOneWidget);
+    expect(find.text('Ojek'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Cari pengeluaran'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'ayam');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Makan ayam'), findsOneWidget);
+    expect(find.text('Ojek'), findsNothing);
+
+    await tester.tap(find.byTooltip('Tutup pencarian'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Makan ayam'), findsOneWidget);
+    expect(find.text('Ojek'), findsOneWidget);
+  });
 }

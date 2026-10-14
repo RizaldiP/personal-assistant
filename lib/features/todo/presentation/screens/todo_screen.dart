@@ -12,15 +12,69 @@ import '../widgets/task_tile.dart';
 import 'todo_form_screen.dart';
 
 /// Layar daftar tugas: grup belum selesai (di atas) dan selesai.
-class TodoScreen extends ConsumerWidget {
+class TodoScreen extends ConsumerStatefulWidget {
   const TodoScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TodoScreen> createState() => _TodoScreenState();
+}
+
+class _TodoScreenState extends ConsumerState<TodoScreen> {
+  final _searchController = TextEditingController();
+  bool _searching = false;
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final tasksAsync = ref.watch(todoListProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Tugas')),
+      appBar: AppBar(
+        title: const Text('Tugas'),
+        actions: [
+          IconButton(
+            tooltip: _searching ? 'Tutup pencarian' : 'Cari tugas',
+            icon: Icon(_searching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                _searching = !_searching;
+                if (!_searching) {
+                  _searchController.clear();
+                  _query = '';
+                }
+              });
+            },
+          ),
+        ],
+        bottom: _searching
+            ? PreferredSize(
+                preferredSize: Size.fromHeight(
+                  72 *
+                      MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    0,
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    decoration: const InputDecoration(hintText: 'Cari tugas...'),
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
+              )
+            : null,
+      ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Tambah tugas',
         onPressed: () => _openForm(context),
@@ -33,15 +87,26 @@ class TodoScreen extends ConsumerWidget {
             title: 'Tugas gagal dimuat',
             onRetry: () => ref.invalidate(todoListProvider),
           ),
-          data: (tasks) => tasks.isEmpty
-              ? const EmptyState(
-                  icon: Icons.checklist,
-                  title: 'Belum ada tugas',
-                  message:
-                      'Ketuk tombol + untuk menambah tugas, atau ketik '
-                      'di percakapan seperti "besok selesaikan laporan".',
-                )
-              : _TaskList(tasks: tasks),
+          data: (tasks) {
+            if (tasks.isEmpty) {
+              return const EmptyState(
+                icon: Icons.checklist,
+                title: 'Belum ada tugas',
+                message:
+                    'Ketuk tombol + untuk menambah tugas, atau ketik '
+                    'di percakapan seperti "besok selesaikan laporan".',
+              );
+            }
+            final filtered = _filterTasks(tasks, _query);
+            if (filtered.isEmpty) {
+              return EmptyState(
+                icon: Icons.search_off,
+                title: 'Tidak ditemukan',
+                message: 'Tidak ada tugas yang cocok dengan "$_query".',
+              );
+            }
+            return _TaskList(tasks: filtered);
+          },
         ),
       ),
     );
@@ -52,6 +117,18 @@ class TodoScreen extends ConsumerWidget {
       context,
     ).push<void>(MaterialPageRoute(builder: (_) => const TodoFormScreen()));
   }
+}
+
+List<Task> _filterTasks(List<Task> tasks, String query) {
+  final keyword = query.trim().toLowerCase();
+  if (keyword.isEmpty) return tasks;
+  return tasks
+      .where(
+        (task) =>
+            task.title.toLowerCase().contains(keyword) ||
+            (task.description?.toLowerCase().contains(keyword) ?? false),
+      )
+      .toList();
 }
 
 class _TaskList extends ConsumerWidget {

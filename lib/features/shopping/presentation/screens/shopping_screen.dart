@@ -10,18 +10,74 @@ import '../../domain/entities/shopping_list.dart';
 import '../providers/shopping_controller.dart';
 
 /// Layar daftar belanja: checklist item, tambah/hapus, kelompok selesai.
-class ShoppingScreen extends ConsumerWidget {
+class ShoppingScreen extends ConsumerStatefulWidget {
   const ShoppingScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShoppingScreen> createState() => _ShoppingScreenState();
+}
+
+class _ShoppingScreenState extends ConsumerState<ShoppingScreen> {
+  final _searchController = TextEditingController();
+  bool _searching = false;
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final listsAsync = ref.watch(shoppingListsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Belanja')),
+      appBar: AppBar(
+        title: const Text('Belanja'),
+        actions: [
+          IconButton(
+            tooltip: _searching ? 'Tutup pencarian' : 'Cari belanja',
+            icon: Icon(_searching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                _searching = !_searching;
+                if (!_searching) {
+                  _searchController.clear();
+                  _query = '';
+                }
+              });
+            },
+          ),
+        ],
+        bottom: _searching
+            ? PreferredSize(
+                preferredSize: Size.fromHeight(
+                  72 *
+                      MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.5),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg,
+                    0,
+                    AppSpacing.lg,
+                    AppSpacing.sm,
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      hintText: 'Cari item belanja...',
+                    ),
+                    onChanged: (value) => setState(() => _query = value),
+                  ),
+                ),
+              )
+            : null,
+      ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Tambah item belanja',
-        onPressed: () => _promptAddItem(context, ref),
+        onPressed: () => _promptAddItem(context),
         child: const Icon(Icons.add),
       ),
       body: SafeArea(
@@ -31,21 +87,32 @@ class ShoppingScreen extends ConsumerWidget {
             title: 'Belanja gagal dimuat',
             onRetry: () => ref.invalidate(shoppingListsProvider),
           ),
-          data: (lists) => lists.isEmpty
-              ? EmptyState(
-                  icon: Icons.shopping_basket_outlined,
-                  title: 'Belum ada daftar belanja',
-                  message:
-                      'Ketuk tombol + untuk menambah item, atau ketik di '
-                      'percakapan seperti "besok beli beras minyak telur".',
-                )
-              : _ShoppingList(lists: lists),
+          data: (lists) {
+            if (lists.isEmpty) {
+              return EmptyState(
+                icon: Icons.shopping_basket_outlined,
+                title: 'Belum ada daftar belanja',
+                message:
+                    'Ketuk tombol + untuk menambah item, atau ketik di '
+                    'percakapan seperti "besok beli beras minyak telur".',
+              );
+            }
+            final filtered = _filterLists(lists, _query);
+            if (filtered.isEmpty) {
+              return EmptyState(
+                icon: Icons.search_off,
+                title: 'Tidak ditemukan',
+                message: 'Tidak ada item yang cocok dengan "$_query".',
+              );
+            }
+            return _ShoppingList(lists: filtered);
+          },
         ),
       ),
     );
   }
 
-  Future<void> _promptAddItem(BuildContext context, WidgetRef ref) async {
+  Future<void> _promptAddItem(BuildContext context) async {
     final controller = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
@@ -83,6 +150,25 @@ class ShoppingScreen extends ConsumerWidget {
       }
     }
   }
+}
+
+List<ShoppingList> _filterLists(List<ShoppingList> lists, String query) {
+  final keyword = query.trim().toLowerCase();
+  if (keyword.isEmpty) return lists;
+  final result = <ShoppingList>[];
+  for (final list in lists) {
+    if (list.title.toLowerCase().contains(keyword)) {
+      result.add(list);
+      continue;
+    }
+    final matchingItems = list.items
+        .where((item) => item.name.toLowerCase().contains(keyword))
+        .toList();
+    if (matchingItems.isNotEmpty) {
+      result.add(list.copyWith(items: matchingItems));
+    }
+  }
+  return result;
 }
 
 class _ShoppingList extends ConsumerWidget {

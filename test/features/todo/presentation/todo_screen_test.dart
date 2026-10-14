@@ -150,4 +150,27 @@ void main() {
     expect(find.text('Judul wajib diisi'), findsOneWidget);
     expect(repository.tasks, isEmpty);
   });
+
+  testWidgets('pencarian memfilter daftar tugas', (tester) async {
+    await repository.create(const Task(title: 'Kerjakan laporan'));
+    await repository.create(const Task(title: 'Beresin kamar'));
+
+    await pumpTodo(tester);
+    expect(find.text('Kerjakan laporan'), findsOneWidget);
+    expect(find.text('Beresin kamar'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Cari tugas'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'laporan');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kerjakan laporan'), findsOneWidget);
+    expect(find.text('Beresin kamar'), findsNothing);
+
+    await tester.tap(find.byTooltip('Tutup pencarian'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Kerjakan laporan'), findsOneWidget);
+    expect(find.text('Beresin kamar'), findsOneWidget);
+  });
 }
